@@ -1,3 +1,5 @@
+# Veteran Facility Agent Prototype
+
 A fully functional AI-powered agent that helps veterans find nearby VA facilities and get intelligent transportation recommendations. Built from the ground up using Node.js, local LLM processing, and real-time API integrations, this system provides veterans with comprehensive facility information, services available, and weather-aware travel guidance—all while maintaining complete data privacy through local processing.
 
 **What makes this special:** Unlike cloud-based solutions, this agent runs entirely on your local machine (optimized for MacBook Air M2 and similar hardware), ensuring veteran data never leaves your computer while still providing sophisticated AI-powered recommendations. The system integrates real VA facility data, Google Maps geocoding, weather analysis, and local LLM reasoning to deliver personalized guidance for veteran facility visits.
