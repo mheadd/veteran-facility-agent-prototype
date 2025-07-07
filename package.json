@@ -7,7 +7,10 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "init-db": "node scripts/init-db.js",
-    "test": "jest",
+    "test": "jest --detectOpenHandles",
+    "test:watch": "jest --watch --detectOpenHandles", 
+    "test:coverage": "jest --coverage --detectOpenHandles",
+    "test:integration": "jest --testPathPattern=integration --detectOpenHandles",
     "setup": "bash scripts/setup.sh"
   },
   "keywords": ["veterans", "va", "facilities", "transportation", "ai-agent"],
@@ -35,5 +38,17 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 70000,
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/app.js",
+      "!**/node_modules/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"]
   }
 }

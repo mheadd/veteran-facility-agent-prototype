@@ -1,0 +1,56 @@
+name: Quick Tests
+
+on:
+  push:
+    branches-ignore: [ main ]
+  workflow_dispatch:
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Wait for Redis
+      run: timeout 30 bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+
+    - name: Run basic tests (without LLM)
+      run: |
+        # Run tests that don't require Ollama for faster feedback
+        npm test -- --testNamePattern="Health|Geocoding|Error" --testTimeout=30000
+      env:
+        NODE_ENV: test
+        REDIS_URL: redis://localhost:6379
+        # Skip LLM tests for speed
+        SKIP_LLM_TESTS: true
+
+    - name: Basic build test
+      run: |
+        # Ensure the application can start
+        timeout 30s npm start &
+        sleep 10
+        curl -f http://localhost:3000/api/health
+        pkill -f "npm start" || true

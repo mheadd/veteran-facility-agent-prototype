@@ -79,11 +79,13 @@ app.use('*', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Veteran Facility Agent API running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Veteran Facility Agent API running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`Health check: http://localhost:${PORT}/api/health`);
+  });
+}
 
 module.exports = app;

@@ -375,20 +375,11 @@ router.post('/find', async (req, res) => {
     console.error('Facility finder error:', error);
     console.error('Error stack:', error.stack);
     
-    // Return partial response if we have location but failed later
-    if (location) {
-      res.status(200).json({
-        location: location,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
-    } else {
-      res.status(500).json({
-        error: 'Failed to find VA facilities',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
+    res.status(500).json({
+      error: 'Failed to find VA facilities',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

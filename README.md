@@ -1,4 +1,7 @@
-**A fully functional AI-powered agent that helps veterans find nearby VA facilities and get intelligent transportation recommendations.** Built from the ground up using Node.js, local LLM processing, and real-time API integrations, this system provides veterans with comprehensive facility information, services available, and weather-aware travel guidance—all while maintaining complete data privacy through local processing.
+![CI](https://github.com/mheadd/veteran-facility-agent/workflows/CI%2FCD%20Pipeline/badge.svg)
+![Tests](https://github.com/mheadd/veteran-facility-agent/workflows/Quick%20Tests/badge.svg)
+
+A fully functional AI-powered agent that helps veterans find nearby VA facilities and get intelligent transportation recommendations. Built from the ground up using Node.js, local LLM processing, and real-time API integrations, this system provides veterans with comprehensive facility information, services available, and weather-aware travel guidance—all while maintaining complete data privacy through local processing.
 
 **What makes this special:** Unlike cloud-based solutions, this agent runs entirely on your local machine (optimized for MacBook Air M2 and similar hardware), ensuring veteran data never leaves your computer while still providing sophisticated AI-powered recommendations. The system integrates real VA facility data, Google Maps geocoding, weather analysis, and local LLM reasoning to deliver personalized guidance for veteran facility visits.
 
@@ -109,40 +112,6 @@ The agent is built with privacy and independence in mind, using local LLM proces
 - **axios**: HTTP client for API requests
 - **moment**: Date and time handling for schedules
 
-## Resource Management and Optimization
-
-### Model Selection Guide
-Choose the appropriate model based on your system:
-
-| System RAM | Recommended Model | Usage | Performance |
-|------------|------------------|-------|-------------|
-| 8-12GB     | `phi3`          | Development, testing | Fast, efficient |
-| 12-16GB    | `mistral:7b`    | Balanced performance | Good quality/speed |
-| 16GB+      | `llama3`        | Production use | Best quality |
-
-### Performance Optimization Commands
-```bash
-# Check current resource usage
-docker stats
-
-# Optimize model selection for current system
-./scripts/manage-models.sh optimize
-
-# Switch models as needed
-./scripts/manage-models.sh switch phi3        # Lighter load
-./scripts/manage-models.sh switch llama3      # Full capability
-
-# Monitor system resources
-./scripts/manage-models.sh status
-```
-
-### Expected Performance (MacBook Air M2, 16GB RAM)
-- **Simple queries**: 2-5 seconds
-- **Complex routing**: 5-10 seconds  
-- **Weather analysis**: 3-7 seconds
-- **Memory usage**: 6-10GB total (including macOS)
-- **Concurrent users**: 5-10 comfortable# Veteran Facility Agent
-
 ## Installation and Setup
 
 ### System Requirements
@@ -218,6 +187,86 @@ docker exec ollama ollama pull llama3    # Full capability (16GB+ RAM systems)
 - `GET /api/health` - Application health check
 - `GET /api/models` - List available LLM models
 - `POST /api/geocode` - Convert address to coordinates
+   
+## Testing
+
+This project includes a comprehensive test suite covering all major functionality including API endpoints, LLM intelligence, VA facility discovery, and error handling.
+
+### Running Tests
+
+```bash
+# Run all tests
+docker-compose exec app npm test
+
+# Run tests with coverage report
+docker-compose exec app npm run test:coverage
+
+# Run tests in watch mode (for development)
+docker-compose exec app npm run test:watch
+
+# Run specific test suites
+docker-compose exec app npm test -- --testNamePattern="LLM"
+docker-compose exec app npm test -- --testNamePattern="Facility"
+docker-compose exec app npm test -- --testNamePattern="Error"
+```
+
+### Test Coverage
+
+The test suite includes:
+- **Health and Basic Functionality**: API health checks and basic endpoints
+- **Geocoding Service**: Address conversion and validation
+- **VA Facility Discovery**: Real facility data retrieval and processing
+- **LLM Intelligence**: AI-powered query processing and recommendations
+- **Data Quality**: Facility data structure and distance calculations
+- **Recommendations Engine**: Veteran-specific advice generation
+- **Error Handling**: Edge cases and malformed request handling
+
+### Test Requirements
+
+- **API Keys**: Some tests require valid API keys in your `.env` file
+- **LLM Service**: Ollama must be running for LLM-related tests
+- **Network Access**: Tests require internet connectivity for external APIs
+
+### Test Configuration
+
+Test settings are configured in `package.json`:
+- **Timeout**: 70 seconds for LLM operations
+- **Environment**: Automatically set to test mode
+- **Coverage**: Detailed reports generated in `coverage/` directory
+
+Run `npm run test:coverage` to see detailed coverage statistics and identify areas for additional testing.## Resource Management and Optimization
+
+### Model Selection Guide
+Choose the appropriate model based on your system:
+
+| System RAM | Recommended Model | Usage | Performance |
+|------------|------------------|-------|-------------|
+| 8-12GB     | `phi3`          | Development, testing | Fast, efficient |
+| 12-16GB    | `mistral:7b`    | Balanced performance | Good quality/speed |
+| 16GB+      | `llama3`        | Production use | Best quality |
+
+### Performance Optimization Commands
+```bash
+# Check current resource usage
+docker stats
+
+# Optimize model selection for current system
+./scripts/manage-models.sh optimize
+
+# Switch models as needed
+./scripts/manage-models.sh switch phi3        # Lighter load
+./scripts/manage-models.sh switch llama3      # Full capability
+
+# Monitor system resources
+./scripts/manage-models.sh status
+```
+
+### Expected Performance (MacBook Air M2, 16GB RAM)
+- **Simple queries**: 2-5 seconds
+- **Complex routing**: 5-10 seconds  
+- **Weather analysis**: 3-7 seconds
+- **Memory usage**: 6-10GB total (including macOS)
+- **Concurrent users**: 5-10 comfortable# Veteran Facility Agent
 
 ## Contributing
 
@@ -257,10 +306,6 @@ This solution is specifically designed to run on conventional laptop hardware:
 - **Chromebooks** (Linux mode): Limited but functional
 
 **No specialized hardware, GPU, or cloud infrastructure required.**
-
-## License
-
-[Include your chosen license here]
 
 ## Support
 
