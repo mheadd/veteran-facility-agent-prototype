@@ -267,7 +267,7 @@ docker stats
 
 ## Contributing
 
-This project is designed to serve veterans and their families. Contributions that improve accessibility, add new transportation options, or enhance the user experience are especially welcome.
+This project is designed to serve veterans and their families. Contributions that improve accessibility, add new transportation options, or enhance the user experience are especially welcome. There is [a to do list here](TODO.md)
 
 ### Development Guidelines
 - Follow veteran-first design principles
