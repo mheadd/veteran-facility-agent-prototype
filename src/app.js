@@ -11,7 +11,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-
 app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
@@ -48,6 +47,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       findFacility: 'POST /api/facilities/find',
+      askQuestion: 'POST /api/facilities/ask',
       facilityDetails: 'GET /api/facilities/:facilityId',
       searchFacilities: 'GET /api/facilities/search',
       geocode: 'POST /api/facilities/geocode',

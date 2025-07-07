@@ -4,11 +4,249 @@ const router = express.Router();
 const GeocodingService = require('../services/geocoding-simple');
 const WeatherService = require('../services/weather');
 const VAAPIService = require('../services/va-api');
+const LLMService = require('../services/llm');
 
 // Initialize services
 const geocoding = new GeocodingService();
 const weather = new WeatherService();
 const vaAPI = new VAAPIService();
+const llm = new LLMService();
+
+// Warm up the LLM model when the service starts
+llm.warmUpModel().then(success => {
+  if (success) {
+    console.log('LLM model ready for use');
+  } else {
+    console.log('LLM model warm-up failed - will try on first request');
+  }
+}).catch(err => {
+  console.log('LLM warm-up error:', err.message);
+});
+
+/**
+ * Simple LLM query endpoint for testing
+ * POST /api/facilities/simple-ask
+ */
+router.post('/simple-ask', async (req, res) => {
+  try {
+    const { query, location } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    console.log(`Processing simple query: "${query}"`);
+
+    // Get basic facility info if location provided
+    let facilityInfo = "No specific location provided";
+    if (location) {
+      try {
+        const locationData = await geocoding.geocodeAddress(location);
+        const facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
+          radius: 25,
+          maxResults: 2
+        });
+        
+        if (facilities.length > 0) {
+          const nearest = facilities[0];
+          facilityInfo = `Nearest facility: ${nearest.name} at ${nearest.location.address.full}, ${nearest.distance} miles away. Services include: ${nearest.services.slice(0, 3).map(s => s.description).join(', ')}.`;
+        }
+      } catch (error) {
+        facilityInfo = "Could not determine specific facilities for your location";
+      }
+    }
+
+    // Very simple prompt
+    const simplePrompt = `A veteran asks: "${query}"
+
+Available info: ${facilityInfo}
+
+Provide helpful advice in 2-3 sentences. Be supportive and specific.`;
+
+    const response = await llm.generateResponse(simplePrompt, {
+      temperature: 0.5,
+      maxTokens: 150
+    });
+
+    res.json({
+      query: query,
+      location: location,
+      advice: response,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Simple LLM query error:', error);
+    res.status(500).json({
+      error: 'Failed to process query',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Test LLM service endpoint
+ * GET /api/facilities/test-llm
+ */
+router.get('/test-llm', async (req, res) => {
+  try {
+    // Test if LLM service is available
+    const isAvailable = await llm.isAvailable();
+    console.log('LLM service available:', isAvailable);
+    
+    if (!isAvailable) {
+      return res.json({
+        available: false,
+        error: 'Ollama service not reachable',
+        ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
+      });
+    }
+
+    // Test a simple prompt
+    const simpleResponse = await llm.generateResponse(
+      "Hello, please respond with 'LLM is working correctly' if you can understand this message.",
+      { temperature: 0.1, maxTokens: 50 }
+    );
+
+    res.json({
+      available: true,
+      model: process.env.DEFAULT_MODEL || 'llama3',
+      response: simpleResponse,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('LLM test error:', error);
+    res.json({
+      available: false,
+      error: error.message,
+      stack: error.stack,
+      ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
+    });
+  }
+});
+
+/**
+ * Intelligent query endpoint - handles complex veteran questions with LLM
+ * POST /api/facilities/ask
+ * Body: { query: "string", location?: "string", context?: {} }
+ */
+router.post('/ask', async (req, res) => {
+  try {
+    const { query, location, context = {} } = req.body;
+    
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({
+        error: 'Query is required and must be a string'
+      });
+    }
+
+    console.log(`Processing intelligent query: "${query}"`);
+
+    // Step 1: Get location context if provided
+    let locationData = null;
+    if (location) {
+      try {
+        if (typeof location === 'string') {
+          locationData = await geocoding.geocodeAddress(location);
+        } else if (location.lat && location.lng) {
+          locationData = location;
+        }
+      } catch (error) {
+        console.log('Could not geocode location:', error.message);
+      }
+    }
+
+    // Step 2: Find relevant facilities if we have location
+    let facilities = [];
+    let nearestFacility = null;
+    if (locationData) {
+      try {
+        facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
+          radius: 50,
+          maxResults: 5
+        });
+        nearestFacility = facilities[0] || null;
+      } catch (error) {
+        console.log('Could not fetch facilities:', error.message);
+      }
+    }
+
+    // Step 3: Get weather context if location available
+    let weatherData = null;
+    if (locationData) {
+      try {
+        weatherData = await weather.getWeatherData(locationData.lat, locationData.lng);
+      } catch (error) {
+        console.log('Weather data not available:', error.message);
+      }
+    }
+
+    // Step 4: Analyze the query with LLM
+    const analysisContext = {
+      location: locationData,
+      nearestFacility: nearestFacility,
+      weather: weatherData?.current,
+      services: nearestFacility?.services?.map(s => s.name) || []
+    };
+
+    const analysis = await llm.analyzeVeteranQuery(query, analysisContext);
+    
+    // Step 5: Enhance facility recommendations if we have facilities
+    let enhancedRecommendations = null;
+    if (facilities.length > 0 && analysis.success) {
+      try {
+        enhancedRecommendations = await llm.enhanceFacilityRecommendations(
+          facilities, 
+          analysis.analysis, 
+          { weather: weatherData?.current }
+        );
+      } catch (error) {
+        console.log('Could not enhance recommendations:', error.message);
+      }
+    }
+
+    // Step 6: Generate conversational response
+    const conversationalResponse = await llm.generateConversationalResponse(
+      query,
+      { facilities, nearestFacility, location: locationData },
+      { weather: weatherData?.current }
+    );
+
+    // Build comprehensive response
+    const response = {
+      query: query,
+      location: locationData,
+      analysis: analysis.success ? analysis.analysis : null,
+      facilities: facilities,
+      nearestFacility: nearestFacility,
+      enhancedRecommendations: enhancedRecommendations?.success ? enhancedRecommendations.enhanced : null,
+      conversationalResponse: conversationalResponse,
+      weatherContext: weatherData ? {
+        condition: weatherData.current.condition,
+        temperature: weatherData.current.temperature,
+        impact: weatherData.current.condition.includes('rain') ? 'Consider transportation delays' : null
+      } : null,
+      timestamp: new Date().toISOString()
+    };
+
+    // Handle different response formats based on success
+    if (!analysis.success) {
+      response.fallbackAdvice = analysis.fallbackAdvice;
+      response.error = "LLM analysis unavailable - providing basic information";
+    }
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('Intelligent query error:', error);
+    res.status(500).json({
+      error: 'Failed to process intelligent query',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 /**
  * Debug endpoint to check geocoding service status
