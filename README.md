@@ -231,7 +231,9 @@ Test settings are configured in `package.json`:
 - **Environment**: Automatically set to test mode
 - **Coverage**: Detailed reports generated in `coverage/` directory
 
-Run `npm run test:coverage` to see detailed coverage statistics and identify areas for additional testing.## Resource Management and Optimization
+Run `npm run test:coverage` to see detailed coverage statistics and identify areas for additional testing.
+
+## Resource Management and Optimization
 
 ### Model Selection Guide
 Choose the appropriate model based on your system:
