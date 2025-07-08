@@ -1,3 +1,5 @@
+[![CI/CD Pipeline](https://github.com/mheadd/veteran-facility-agent-prototype/actions/workflows/ci.yml/badge.svg)](https://github.com/mheadd/veteran-facility-agent-prototype/actions/workflows/ci.yml)
+
 # Veteran Facility Agent Prototype
 
 A fully functional AI-powered agent that helps veterans find nearby VA facilities and get intelligent transportation recommendations. Built from the ground up using Node.js, local LLM processing, and real-time API integrations, this system provides veterans with comprehensive facility information, services available, and weather-aware travel guidance—all while maintaining complete data privacy through local processing.
@@ -178,14 +180,40 @@ docker exec ollama ollama pull llama3    # Full capability (16GB+ RAM systems)
 ## API Endpoints
 
 ### Core Functionality
-- `POST /api/find-facility` - Find nearest VA facility and transportation options
-- `GET /api/weather/:location` - Get weather data for specific location
-- `GET /api/facilities/nearby` - List facilities within specified radius
+- `POST /api/facilities/find` - Find nearest VA facility and transportation options
+- `POST /api/facilities/simple-ask` - Process veteran queries with AI-powered assistance
+- `POST /api/facilities/geocode` - Convert addresses to coordinates (standalone geocoding service)
 
-### Utility Endpoints
+### Utility and Testing Endpoints
 - `GET /api/health` - Application health check
-- `GET /api/models` - List available LLM models
-- `POST /api/geocode` - Convert address to coordinates
+- `GET /api/test` - Basic API status and service availability
+- `GET /api/facilities/test-llm` - Test LLM service availability and functionality
+- `GET /api/facilities/test-weather` - Test weather service with sample coordinates
+- `GET /api/facilities/test-transit` - Test transportation routing between sample locations
+
+### Geocoding Service
+The `/api/facilities/geocode` endpoint provides standalone address-to-coordinates conversion:
+
+**Request:**
+```json
+{
+  "address": "1600 Pennsylvania Avenue NW, Washington, DC 20500"
+}
+```
+
+**Response:**
+```json
+{
+  "location": {
+    "lat": 38.8977,
+    "lng": -77.0365,
+    "formatted_address": "1600 Pennsylvania Avenue NW, Washington, DC 20500, USA",
+    "source": "google"
+  }
+}
+```
+
+This service supports multiple geocoding providers (Google Maps, OpenStreetMap) with automatic fallback for reliability.
    
 ## Testing
 
