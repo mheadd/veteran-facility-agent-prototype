@@ -262,7 +262,11 @@ Run `npm run test:coverage` to see detailed coverage statistics and identify are
 
 ## Configuration System
 
-The application uses a centralized configuration system located in `src/config/index.js`. All configurable values are organized by service:
+The application uses a dual-layer configuration system that combines centralized code configuration with environment-specific variables:
+
+### Centralized Configuration (`src/config/index.js`)
+
+All configurable values are organized by service in the main configuration file:
 
 - **VA API Service**: Search radius, cache duration, API timeouts
 - **LLM Service**: Response timeouts, temperature settings, model presets
@@ -272,13 +276,64 @@ The application uses a centralized configuration system located in `src/config/i
 - **Transportation Analysis**: Distance thresholds, scoring algorithms
 - **Search Settings**: Default search radius, result limits
 
-#### Environment-Specific Overrides
+### Environment Variables (`.env` file)
+
+Environment-specific settings are managed through the `.env` file, based on `.env.example`:
+
+#### Application Configuration
+- `NODE_ENV` - Environment mode (development, test, production)
+- `PORT` - Application port (default: 3000)
+- `LOG_LEVEL` - Logging verbosity level
+
+#### Service URLs and Connections
+- `REDIS_URL` - Redis connection string
+- `SQLITE_DB_PATH` - SQLite database file path
+- `OLLAMA_URL` - Local LLM service URL
+- `VA_API_BASE_URL` - VA Facilities API base URL
+
+#### API Keys (Required for full functionality)
+- `OPENWEATHERMAP_API_KEY` - Weather data and forecasting
+- `GOOGLE_MAPS_API_KEY` - Geocoding and directions
+- `GOOGLE_DIRECTIONS_API_KEY` - Transportation routing
+- `VA_API_KEY` - Official VA facility data access
+- `MAPBOX_API_KEY` - Alternative geocoding service
+
+#### Performance and Resource Settings
+- `DEFAULT_MODEL` - LLM model selection (e.g., llama3.1:8b, phi3)
+- `MODEL_TIMEOUT` - LLM response timeout in milliseconds
+- `DEFAULT_SEARCH_RADIUS` - Default facility search radius in miles
+- `MAX_FACILITIES_RETURNED` - Maximum facilities per request
+- `WEATHER_CACHE_DURATION` - Weather data cache duration in seconds
+- `FACILITY_CACHE_DURATION` - VA facility data cache duration in seconds
+
+#### Security Settings
+- `CORS_ORIGINS` - Allowed cross-origin domains
+- `RATE_LIMIT_WINDOW` - Rate limiting time window
+- `RATE_LIMIT_MAX` - Maximum requests per time window
+
+### Environment-Specific Overrides
 
 The configuration supports environment-specific overrides for development, test, and production environments. To modify configuration values:
 
-1. Edit `src/config/index.js` for permanent changes
-2. Use environment-specific overrides for temporary changes
-3. Access configuration using `getConfig('path.to.config')` or `getServiceConfig('serviceName')`
+1. **Environment Variables**: Edit `.env` file for API keys, URLs, and runtime settings
+2. **Code Configuration**: Edit `src/config/index.js` for algorithm parameters and internal settings
+3. **Environment Overrides**: Use environment-specific sections in the config for temporary changes
+4. **Access Methods**: Use `getConfig('path.to.config')` or `getServiceConfig('serviceName')` in code
+
+### Setup Instructions
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit with your API keys and preferences
+nano .env  # or your preferred editor
+
+# Key variables to configure:
+# - OPENWEATHERMAP_API_KEY (for weather data)
+# - GOOGLE_MAPS_API_KEY (for geocoding)
+# - VA_API_KEY (for official VA facility data)
+```
 
 ## Resource Management and Optimization
 
