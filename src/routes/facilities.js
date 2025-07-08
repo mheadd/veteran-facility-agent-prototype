@@ -5,12 +5,14 @@ const GeocodingService = require('../services/geocoding-simple');
 const WeatherService = require('../services/weather');
 const VAAPIService = require('../services/va-api');
 const LLMService = require('../services/llm');
+const TransitService = require('../services/transit');
 
 // Initialize services
 const geocoding = new GeocodingService();
 const weather = new WeatherService();
 const vaAPI = new VAAPIService();
 const llm = new LLMService();
+const transit = new TransitService();
 
 // Warm up the LLM model when the service starts
 llm.warmUpModel().then(success => {
@@ -21,264 +23,6 @@ llm.warmUpModel().then(success => {
   }
 }).catch(err => {
   console.log('LLM warm-up error:', err.message);
-});
-
-/**
- * Simple LLM query endpoint for testing
- * POST /api/facilities/simple-ask
- */
-router.post('/simple-ask', async (req, res) => {
-  try {
-    const { query, location } = req.body;
-    
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
-    }
-
-    console.log(`Processing simple query: "${query}"`);
-
-    // Get basic facility info if location provided
-    let facilityInfo = "No specific location provided";
-    if (location) {
-      try {
-        const locationData = await geocoding.geocodeAddress(location);
-        const facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
-          radius: 25,
-          maxResults: 2
-        });
-        
-        if (facilities.length > 0) {
-          const nearest = facilities[0];
-          facilityInfo = `Nearest facility: ${nearest.name} at ${nearest.location.address.full}, ${nearest.distance} miles away. Services include: ${nearest.services.slice(0, 3).map(s => s.description).join(', ')}.`;
-        }
-      } catch (error) {
-        facilityInfo = "Could not determine specific facilities for your location";
-      }
-    }
-
-    // Very simple prompt
-    const simplePrompt = `A veteran asks: "${query}"
-
-Available info: ${facilityInfo}
-
-Provide helpful advice in 2-3 sentences. Be supportive and specific.`;
-
-    const response = await llm.generateResponse(simplePrompt, {
-      temperature: 0.5,
-      maxTokens: 150
-    });
-
-    res.json({
-      query: query,
-      location: location,
-      advice: response,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Simple LLM query error:', error);
-    res.status(500).json({
-      error: 'Failed to process query',
-      message: error.message
-    });
-  }
-});
-
-/**
- * Test LLM service endpoint
- * GET /api/facilities/test-llm
- */
-router.get('/test-llm', async (req, res) => {
-  try {
-    // Test if LLM service is available
-    const isAvailable = await llm.isAvailable();
-    console.log('LLM service available:', isAvailable);
-    
-    if (!isAvailable) {
-      return res.json({
-        available: false,
-        error: 'Ollama service not reachable',
-        ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
-      });
-    }
-
-    // Test a simple prompt
-    const simpleResponse = await llm.generateResponse(
-      "Hello, please respond with 'LLM is working correctly' if you can understand this message.",
-      { temperature: 0.1, maxTokens: 50 }
-    );
-
-    res.json({
-      available: true,
-      model: process.env.DEFAULT_MODEL || 'llama3',
-      response: simpleResponse,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('LLM test error:', error);
-    res.json({
-      available: false,
-      error: error.message,
-      stack: error.stack,
-      ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
-    });
-  }
-});
-
-/**
- * Intelligent query endpoint - handles complex veteran questions with LLM
- * POST /api/facilities/ask
- * Body: { query: "string", location?: "string", context?: {} }
- */
-router.post('/ask', async (req, res) => {
-  try {
-    const { query, location, context = {} } = req.body;
-    
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({
-        error: 'Query is required and must be a string'
-      });
-    }
-
-    console.log(`Processing intelligent query: "${query}"`);
-
-    // Step 1: Get location context if provided
-    let locationData = null;
-    if (location) {
-      try {
-        if (typeof location === 'string') {
-          locationData = await geocoding.geocodeAddress(location);
-        } else if (location.lat && location.lng) {
-          locationData = location;
-        }
-      } catch (error) {
-        console.log('Could not geocode location:', error.message);
-      }
-    }
-
-    // Step 2: Find relevant facilities if we have location
-    let facilities = [];
-    let nearestFacility = null;
-    if (locationData) {
-      try {
-        facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
-          radius: 50,
-          maxResults: 5
-        });
-        nearestFacility = facilities[0] || null;
-      } catch (error) {
-        console.log('Could not fetch facilities:', error.message);
-      }
-    }
-
-    // Step 3: Get weather context if location available
-    let weatherData = null;
-    if (locationData) {
-      try {
-        weatherData = await weather.getWeatherData(locationData.lat, locationData.lng);
-      } catch (error) {
-        console.log('Weather data not available:', error.message);
-      }
-    }
-
-    // Step 4: Analyze the query with LLM
-    const analysisContext = {
-      location: locationData,
-      nearestFacility: nearestFacility,
-      weather: weatherData?.current,
-      services: nearestFacility?.services?.map(s => s.name) || []
-    };
-
-    const analysis = await llm.analyzeVeteranQuery(query, analysisContext);
-    
-    // Step 5: Enhance facility recommendations if we have facilities
-    let enhancedRecommendations = null;
-    if (facilities.length > 0 && analysis.success) {
-      try {
-        enhancedRecommendations = await llm.enhanceFacilityRecommendations(
-          facilities, 
-          analysis.analysis, 
-          { weather: weatherData?.current }
-        );
-      } catch (error) {
-        console.log('Could not enhance recommendations:', error.message);
-      }
-    }
-
-    // Step 6: Generate conversational response
-    const conversationalResponse = await llm.generateConversationalResponse(
-      query,
-      { facilities, nearestFacility, location: locationData },
-      { weather: weatherData?.current }
-    );
-
-    // Build comprehensive response
-    const response = {
-      query: query,
-      location: locationData,
-      analysis: analysis.success ? analysis.analysis : null,
-      facilities: facilities,
-      nearestFacility: nearestFacility,
-      enhancedRecommendations: enhancedRecommendations?.success ? enhancedRecommendations.enhanced : null,
-      conversationalResponse: conversationalResponse,
-      weatherContext: weatherData ? {
-        condition: weatherData.current.condition,
-        temperature: weatherData.current.temperature,
-        impact: weatherData.current.condition.includes('rain') ? 'Consider transportation delays' : null
-      } : null,
-      timestamp: new Date().toISOString()
-    };
-
-    // Handle different response formats based on success
-    if (!analysis.success) {
-      response.fallbackAdvice = analysis.fallbackAdvice;
-      response.error = "LLM analysis unavailable - providing basic information";
-    }
-
-    res.json(response);
-
-  } catch (error) {
-    console.error('Intelligent query error:', error);
-    res.status(500).json({
-      error: 'Failed to process intelligent query',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Debug endpoint to check geocoding service status
- * GET /api/facilities/debug
- */
-router.get('/debug', async (req, res) => {
-  try {
-    const debug = {
-      geocoding: {
-        providersCount: geocoding.geocoders?.length || 0,
-        providers: geocoding.geocoders?.map((g, i) => ({
-          index: i,
-          name: g.providerName || g.options?.provider || 'unknown',
-          hasApiKey: g.hasValidApiKey ? 'yes' : 'no',
-          apiKeyLength: g.options?.apiKey ? g.options.apiKey.length : 0
-        })) || [],
-        googleApiKey: process.env.GOOGLE_MAPS_API_KEY ? 'configured' : 'missing',
-        weatherApiKey: process.env.OPENWEATHERMAP_API_KEY ? 'configured' : 'missing'
-      },
-      environment: {
-        nodeEnv: process.env.NODE_ENV,
-        vaApiUrl: process.env.VA_API_BASE_URL
-      }
-    };
-    
-    res.json(debug);
-  } catch (error) {
-    res.status(500).json({
-      error: 'Debug endpoint failed',
-      message: error.message
-    });
-  }
 });
 
 /**
@@ -328,7 +72,8 @@ router.post('/find', async (req, res) => {
         location: location,
         facilities: [],
         message: 'No VA facilities found within the specified radius. Try increasing the search radius.',
-        weatherAnalysis: null
+        weatherAnalysis: null,
+        transportationOptions: null
       });
     }
 
@@ -352,15 +97,42 @@ router.post('/find', async (req, res) => {
       }
     }
 
-    // Step 4: Build response with recommendations
-    console.log('Step 4: Building response...');
-    console.log('Weather analysis:', JSON.stringify(weatherAnalysis, null, 2));
+    // Step 4: Get transportation options if we have a nearest facility
+    console.log('Step 4: Getting transportation options...');
+    let transportationOptions = null;
+    if (facilities.length > 0) {
+      try {
+        const destination = {
+          lat: facilities[0].location.lat,
+          lng: facilities[0].location.lng,
+          address: facilities[0].location.address.full
+        };
+
+        transportationOptions = await transit.getTransportationOptions(location, destination, {
+          includeTransit: true,
+          includeDriving: true,
+          includeWalking: true,
+          includeBicycling: false
+        });
+        console.log('Transportation options retrieved');
+      } catch (error) {
+        console.log('Transportation options unavailable:', error.message);
+        transportationOptions = {
+          error: 'Transportation data temporarily unavailable',
+          fallback: 'Consider public transit, driving, or rideshare services'
+        };
+      }
+    }
+
+    // Step 5: Build response with recommendations
+    console.log('Step 5: Building response...');
     const response = {
       location: location,
       facilities: facilities,
       nearestFacility: facilities[0],
       weatherAnalysis: weatherAnalysis,
-      recommendations: generateRecommendations(facilities[0], weatherAnalysis),
+      transportationOptions: transportationOptions,
+      recommendations: generateRecommendations(facilities[0], weatherAnalysis, transportationOptions),
       searchParameters: {
         radius: radius || 50,
         facilityType: facilityType || 'all'
@@ -384,123 +156,207 @@ router.post('/find', async (req, res) => {
 });
 
 /**
- * Get detailed information about a specific facility
- * GET /api/facilities/:facilityId
+ * Simple LLM query endpoint for testing
+ * POST /api/facilities/simple-ask
  */
-router.get('/:facilityId', async (req, res) => {
+router.post('/simple-ask', async (req, res) => {
   try {
-    const { facilityId } = req.params;
-    const { includeWeather } = req.query;
-
-    const facility = await vaAPI.getFacilityDetails(facilityId);
+    const { query, location } = req.body;
     
-    let weatherAnalysis = null;
-    if (includeWeather === 'true') {
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    console.log(`Processing simple query: "${query}"`);
+
+    // Get basic facility info if location provided
+    let facilityInfo = "No specific location provided";
+    if (location) {
       try {
-        const weatherData = await weather.getWeatherData(facility.location.lat, facility.location.lng);
-        weatherAnalysis = weather.analyzeWeatherForTransport(weatherData);
+        const locationData = await geocoding.geocodeAddress(location);
+        const facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
+          radius: 25,
+          maxResults: 2
+        });
+        
+        if (facilities.length > 0) {
+          const nearest = facilities[0];
+          facilityInfo = `Nearest facility: ${nearest.name} at ${nearest.location.address.full}, ${nearest.distance} miles away. Services include: ${nearest.services.slice(0, 3).map(s => s.description).join(', ')}.`;
+        }
       } catch (error) {
-        console.log('Weather data unavailable:', error.message);
+        facilityInfo = "Could not determine specific facilities for your location";
       }
     }
 
+    // Test route for LLM without transportation complexity
+    const simplePrompt = `A veteran asks: "${query}"
+
+Available info: ${facilityInfo}
+
+Provide helpful advice in 2-3 sentences. Be supportive and specific.`;
+
+    const response = await llm.generateResponse(simplePrompt, {
+      temperature: 0.5,
+      maxTokens: 150
+    });
+
     res.json({
-      facility: facility,
-      weatherAnalysis: weatherAnalysis,
+      query: query,
+      location: location,
+      advice: response,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Facility details error:', error);
+    console.error('Simple LLM query error:', error);
     res.status(500).json({
-      error: 'Failed to get facility details',
+      error: 'Failed to process query',
       message: error.message
     });
   }
 });
 
 /**
- * Search facilities by type or service
- * GET /api/facilities/search
+ * Test weather service endpoint
+ * GET /api/facilities/test-weather
  */
-router.get('/search', async (req, res) => {
+router.get('/test-weather', async (req, res) => {
   try {
-    const { lat, lng, type, service, radius } = req.query;
-
-    if (!lat || !lng) {
-      return res.status(400).json({
-        error: 'Latitude and longitude are required'
-      });
-    }
-
-    const facilities = await vaAPI.findFacilities(parseFloat(lat), parseFloat(lng), {
-      radius: parseInt(radius) || 50,
-      facilityType: type,
-      services: service
-    });
-
-    res.json({
-      facilities: facilities,
-      searchParameters: {
-        location: { lat: parseFloat(lat), lng: parseFloat(lng) },
-        type: type,
-        service: service,
-        radius: parseInt(radius) || 50
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('Facility search error:', error);
-    res.status(500).json({
-      error: 'Failed to search facilities',
-      message: error.message
-    });
-  }
-});
-
-/**
- * Geocode an address
- * POST /api/facilities/geocode
- */
-router.post('/geocode', async (req, res) => {
-  try {
-    const { address } = req.body;
-
-    if (!address) {
-      return res.status(400).json({
-        error: 'Address is required'
-      });
-    }
-
-    const location = await geocoding.geocodeAddress(address);
+    const { lat = 38.8977, lng = -77.0365 } = req.query;
+    
+    console.log(`Testing weather for coordinates: ${lat}, ${lng}`);
+    
+    // Test weather service directly
+    const weatherData = await weather.getWeatherData(parseFloat(lat), parseFloat(lng));
+    const analysis = weather.analyzeWeatherForTransport(weatherData);
     
     res.json({
-      location: location,
+      coordinates: { lat: parseFloat(lat), lng: parseFloat(lng) },
+      weatherData: weatherData,
+      analysis: analysis,
+      apiKeyConfigured: !!process.env.OPENWEATHERMAP_API_KEY,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Geocoding error:', error);
+    console.error('Weather test error:', error);
     res.status(500).json({
-      error: 'Failed to geocode address',
-      message: error.message
+      error: error.message,
+      stack: error.stack,
+      apiKeyConfigured: !!process.env.OPENWEATHERMAP_API_KEY,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
- * Generate recommendations based on facility and weather
+ * Test transit service endpoint
+ * GET /api/facilities/test-transit
+ */
+router.get('/test-transit', async (req, res) => {
+  try {
+    const { 
+      originLat = 38.8977, 
+      originLng = -77.0365, 
+      destLat = 38.9296, 
+      destLng = -77.0107 
+    } = req.query;
+
+    const origin = {
+      lat: parseFloat(originLat),
+      lng: parseFloat(originLng),
+      address: "Test Origin"
+    };
+
+    const destination = {
+      lat: parseFloat(destLat),
+      lng: parseFloat(destLng),
+      address: "Test Destination"
+    };
+
+    console.log(`Testing transit from ${origin.lat},${origin.lng} to ${destination.lat},${destination.lng}`);
+
+    const transportationOptions = await transit.getTransportationOptions(origin, destination, {
+      includeTransit: true,
+      includeDriving: true,
+      includeWalking: true
+    });
+
+    res.json({
+      origin: origin,
+      destination: destination,
+      transportationOptions: transportationOptions,
+      apiKeyConfigured: !!process.env.GOOGLE_MAPS_API_KEY,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Transit test error:', error);
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack,
+      apiKeyConfigured: !!process.env.GOOGLE_MAPS_API_KEY,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Test LLM service endpoint
+ * GET /api/facilities/test-llm
+ */
+router.get('/test-llm', async (req, res) => {
+  try {
+    // Test if LLM service is available
+    const isAvailable = await llm.isAvailable();
+    console.log('LLM service available:', isAvailable);
+    
+    if (!isAvailable) {
+      return res.json({
+        available: false,
+        error: 'Ollama service not reachable',
+        ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
+      });
+    }
+
+    // Test a simple prompt
+    const simpleResponse = await llm.generateResponse(
+      "Hello, please respond with 'LLM is working correctly' if you can understand this message.",
+      { temperature: 0.1, maxTokens: 50 }
+    );
+
+    res.json({
+      available: true,
+      model: process.env.DEFAULT_MODEL || 'llama3',
+      response: simpleResponse,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('LLM test error:', error);
+    res.json({
+      available: false,
+      error: error.message,
+      stack: error.stack,
+      ollamaUrl: process.env.OLLAMA_URL || 'http://ollama:11434'
+    });
+  }
+});
+
+/**
+ * Generate recommendations based on facility, weather, and transportation
  * @param {Object} facility - Nearest VA facility
  * @param {Object} weatherAnalysis - Weather analysis
+ * @param {Object} transportationOptions - Transportation options
  * @returns {Object} - Recommendations
  */
-function generateRecommendations(facility, weatherAnalysis) {
+function generateRecommendations(facility, weatherAnalysis, transportationOptions = null) {
   const recommendations = {
     transportation: [],
     timing: [],
     preparation: [],
-    alternatives: []
+    alternatives: [],
+    weatherAlerts: []
   };
 
   if (!facility) {
@@ -515,6 +371,52 @@ function generateRecommendations(facility, weatherAnalysis) {
   } else {
     recommendations.transportation.push('Long distance - plan for extended travel time');
     recommendations.timing.push('Allow extra time for travel');
+  }
+
+  // Transportation-specific recommendations from transit service
+  if (transportationOptions && !transportationOptions.error) {
+    if (transportationOptions.recommendations) {
+      recommendations.transportation.push(...transportationOptions.recommendations);
+    }
+
+    // Add specific transit route information
+    if (transportationOptions.options?.transit?.available) {
+      const transitRoute = transportationOptions.options.transit.bestRoute;
+      if (transitRoute) {
+        recommendations.transportation.push(`Public Transit: ${transitRoute.duration} via ${transitRoute.overview || 'public transportation'}`);
+        
+        // Add fare information if available
+        if (transitRoute.fare) {
+          recommendations.preparation.push(`Transit fare: ${transitRoute.fare.text}`);
+        }
+      }
+    }
+
+    // Add walking information if reasonable distance
+    if (transportationOptions.options?.walking?.available) {
+      const walkRoute = transportationOptions.options.walking.bestRoute;
+      if (walkRoute && walkRoute.distanceValue < 3200) { // Less than 2 miles
+        recommendations.transportation.push(`Walking: ${walkRoute.duration} (${walkRoute.distance})`);
+      }
+    }
+
+    // Add driving information
+    if (transportationOptions.options?.driving?.available) {
+      const driveRoute = transportationOptions.options.driving.bestRoute;
+      if (driveRoute) {
+        recommendations.transportation.push(`Driving: ${driveRoute.duration} (${driveRoute.distance})`);
+      }
+    }
+
+    // Add rideshare information
+    if (transportationOptions.options?.rideshare?.available) {
+      const rideshareOption = transportationOptions.options.rideshare.options[0];
+      if (rideshareOption) {
+        recommendations.alternatives.push(`Rideshare: ${rideshareOption.estimatedTime} (${rideshareOption.estimatedCost})`);
+      }
+    }
+  } else if (transportationOptions && transportationOptions.error) {
+    recommendations.alternatives.push('Transportation details unavailable - consider public transit, driving, or rideshare');
   }
 
   // Weather-based recommendations
@@ -540,6 +442,14 @@ function generateRecommendations(facility, weatherAnalysis) {
 
   if (facility.parking?.available) {
     recommendations.transportation.push('Parking available at facility');
+  }
+
+  // Operating status considerations
+  if (facility.operatingStatus === 'CLOSED') {
+    recommendations.alternatives.push('⚠️ Facility is currently closed - verify hours before traveling');
+    recommendations.preparation.push('Call ahead to confirm facility is open');
+  } else if (facility.operatingStatus === 'LIMITED') {
+    recommendations.preparation.push('Facility operating with limited services - call to confirm availability');
   }
 
   // Veterans-specific considerations
