@@ -47,7 +47,7 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       findFacility: 'POST /api/facilities/find',
-      askQuestion: 'POST /api/facilities/ask',
+      askQuestion: 'POST /api/facilities/simple-ask',
       facilityDetails: 'GET /api/facilities/:facilityId',
       searchFacilities: 'GET /api/facilities/search',
       geocode: 'POST /api/facilities/geocode',

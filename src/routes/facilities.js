@@ -446,7 +446,7 @@ function generateRecommendations(facility, weatherAnalysis, transportationOption
 
   // Operating status considerations
   if (facility.operatingStatus === 'CLOSED') {
-    recommendations.alternatives.push('⚠️ Facility is currently closed - verify hours before traveling');
+    recommendations.alternatives.push('Facility is currently closed - verify hours before traveling');
     recommendations.preparation.push('Call ahead to confirm facility is open');
   } else if (facility.operatingStatus === 'LIMITED') {
     recommendations.preparation.push('Facility operating with limited services - call to confirm availability');

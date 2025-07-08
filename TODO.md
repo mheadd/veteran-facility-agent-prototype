@@ -13,7 +13,7 @@
 
 - [x] Integrate public transit APIs (Google Directions, local transit)
 - [x] Add real-time transit schedules and delays
-- [ ] Generate rideshare deep links with price estimates
+- [x] Generate rideshare deep links with price estimates
 - [x] Include walking/driving directions
 
 ### Advanced LLM Integration
