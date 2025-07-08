@@ -16,6 +16,7 @@ A self-contained AI agent application designed to help veterans find nearby VA f
 - [Technology Stack](#technology-stack)
 - [Installation and Setup](#installation-and-setup)
 - [API Endpoints](#api-endpoints)
+- [Configuration System](#configuration-system)
 - [Testing](#testing)
 - [Resource Management and Optimization](#resource-management-and-optimization)
 - [Contributing](#contributing)
@@ -259,7 +260,7 @@ Test settings are configured in `package.json`:
 
 Run `npm run test:coverage` to see detailed coverage statistics and identify areas for additional testing.
 
-### Configuration System
+## Configuration System
 
 The application uses a centralized configuration system located in `src/config/index.js`. All configurable values are organized by service:
 
