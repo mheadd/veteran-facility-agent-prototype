@@ -1,10 +1,12 @@
 const axios = require('axios');
+const { getServiceConfig } = require('../config');
 
 class WeatherService {
   constructor() {
-    this.openWeatherApiKey = process.env.OPENWEATHERMAP_API_KEY;
+    this.config = getServiceConfig('weather');
+    this.weatherApiKey = process.env.OPENWEATHERMAP_API_KEY;
     this.weatherApiKey = process.env.WEATHERAPI_KEY;
-    this.cacheDuration = parseInt(process.env.WEATHER_CACHE_DURATION) || 300; // 5 minutes default
+    this.cacheDuration = parseInt(process.env.WEATHER_CACHE_DURATION) || this.config.cacheDuration;
     this.cache = new Map();
   }
 
@@ -66,8 +68,8 @@ class WeatherService {
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${this.openWeatherApiKey}&units=imperial`;
 
     const [currentResponse, forecastResponse] = await Promise.all([
-      axios.get(currentUrl, { timeout: 10000 }),
-      axios.get(forecastUrl, { timeout: 10000 })
+      axios.get(currentUrl, { timeout: this.config.requestTimeout }),
+      axios.get(forecastUrl, { timeout: this.config.requestTimeout })
     ]);
 
     const current = currentResponse.data;
@@ -88,7 +90,7 @@ class WeatherService {
         precipitation: current.rain ? (current.rain['1h'] || 0) : 0,
         cloudCover: current.clouds.all
       },
-      forecast: forecast.list.slice(0, 8).map(item => ({ // Next 24 hours (3-hour intervals)
+      forecast: forecast.list.slice(0, this.config.forecastHours / this.config.forecastIntervalHours).map(item => ({ // Configurable forecast hours
         time: new Date(item.dt * 1000).toISOString(),
         temperature: Math.round(item.main.temp),
         condition: item.weather[0].main.toLowerCase(),
@@ -117,7 +119,7 @@ class WeatherService {
   async getWeatherApiData(lat, lng) {
     const url = `https://api.weatherapi.com/v1/forecast.json?key=${this.weatherApiKey}&q=${lat},${lng}&days=1&aqi=no&alerts=yes`;
     
-    const response = await axios.get(url, { timeout: 10000 });
+    const response = await axios.get(url, { timeout: this.config.requestTimeout });
     const data = response.data;
 
     return {
@@ -218,9 +220,9 @@ class WeatherService {
     }
 
     // Check upcoming weather in forecast
-    const nextHours = forecast.slice(0, 4); // Next 12 hours
+    const nextHours = forecast.slice(0, this.config.analysisHours / this.config.forecastIntervalHours); // Configurable analysis period
     const upcomingRain = nextHours.some(f => f.precipitation > 0.1);
-    const upcomingCold = nextHours.some(f => f.temperature < 32);
+    const upcomingCold = nextHours.some(f => f.temperature < this.config.temperatures.freezing);
     
     if (upcomingRain) {
       analysis.recommendations.push('Rain expected later - plan accordingly');

@@ -1,10 +1,12 @@
 const axios = require('axios');
+const { getServiceConfig } = require('../config');
 
 class TransitService {
   constructor() {
+    this.config = getServiceConfig('transit');
     this.googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
     this.directionsApiKey = process.env.GOOGLE_DIRECTIONS_API_KEY || this.googleApiKey;
-    this.cacheDuration = parseInt(process.env.TRANSIT_CACHE_DURATION) || 300; // 5 minutes
+    this.cacheDuration = parseInt(process.env.TRANSIT_CACHE_DURATION) || this.config.cacheDuration;
     this.cache = new Map();
     
     console.log('Transit Service initialized');
@@ -173,7 +175,7 @@ class TransitService {
     console.log(`Getting ${mode} directions...`);
 
     const response = await axios.get(url, {
-      timeout: 10000,
+      timeout: this.config.requestTimeout,
       headers: {
         'User-Agent': 'VeteranFacilityAgent/1.0'
       }
@@ -283,16 +285,16 @@ class TransitService {
           provider: 'Uber',
           deepLink: uberLink,
           webLink: uberWebLink,
-          estimatedTime: '15-25 minutes',
-          estimatedCost: '$12-25',
+          estimatedTime: this.config.rideshare.estimatedTime,
+          estimatedCost: this.config.rideshare.estimatedCostRange,
           description: 'Request an Uber ride'
         },
         {
           provider: 'Lyft',
           deepLink: lyftLink,
           webLink: lyftWebLink,
-          estimatedTime: '15-25 minutes',
-          estimatedCost: '$12-25',
+          estimatedTime: this.config.rideshare.estimatedTime,
+          estimatedCost: this.config.rideshare.estimatedCostRange,
           description: 'Request a Lyft ride'
         }
       ]

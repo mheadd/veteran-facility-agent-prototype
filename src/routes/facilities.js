@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
+const { getConfig } = require('../config');
 const GeocodingService = require('../services/geocoding-simple');
 const WeatherService = require('../services/weather');
 const VAAPIService = require('../services/va-api');
@@ -90,8 +91,8 @@ router.post('/find', async (req, res) => {
     // Step 2: Find VA facilities
     console.log('Step 2: Calling VA API...');
     const facilities = await vaAPI.findFacilities(location.lat, location.lng, {
-      radius: radius || 50,
-      maxResults: 5,
+      radius: radius || getConfig('search.defaultRadius'),
+      maxResults: getConfig('services.va.maxFacilities'),
       facilityType: facilityType
     });
     console.log(`Found ${facilities.length} facilities`);
@@ -164,8 +165,8 @@ router.post('/find', async (req, res) => {
       transportationOptions: transportationOptions,
       recommendations: generateRecommendations(facilities[0], weatherAnalysis, transportationOptions),
       searchParameters: {
-        radius: radius || 50,
-        facilityType: facilityType || 'all'
+        radius: radius || getConfig('search.defaultRadius'),
+        facilityType: facilityType || getConfig('facilityTypes.all')
       },
       timestamp: new Date().toISOString()
     };
@@ -205,8 +206,8 @@ router.post('/simple-ask', async (req, res) => {
       try {
         const locationData = await geocoding.geocodeAddress(location);
         const facilities = await vaAPI.findFacilities(locationData.lat, locationData.lng, {
-          radius: 25,
-          maxResults: 2
+          radius: getConfig('search.smallRadius'),
+          maxResults: getConfig('search.limitedResults') / 2
         });
         
         if (facilities.length > 0) {
@@ -226,8 +227,8 @@ Available info: ${facilityInfo}
 Provide helpful advice in 2-3 sentences. Be supportive and specific.`;
 
     const response = await llm.generateResponse(simplePrompt, {
-      temperature: 0.5,
-      maxTokens: 150
+      temperature: getConfig('services.llm.presets.simple.temperature'),
+      maxTokens: getConfig('services.llm.presets.simple.maxTokens')
     });
 
     res.json({
@@ -352,7 +353,7 @@ router.get('/test-llm', async (req, res) => {
     // Test a simple prompt
     const simpleResponse = await llm.generateResponse(
       "Hello, please respond with 'LLM is working correctly' if you can understand this message.",
-      { temperature: 0.1, maxTokens: 50 }
+      config.services.llm.presets.test
     );
 
     res.json({

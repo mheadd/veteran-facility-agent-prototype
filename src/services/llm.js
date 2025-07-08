@@ -1,10 +1,12 @@
 const axios = require('axios');
+const { getServiceConfig } = require('../config');
 
 class LLMService {
   constructor() {
+    this.config = getServiceConfig('llm');
     this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
     this.model = process.env.DEFAULT_MODEL || 'llama3';
-    this.timeout = parseInt(process.env.MODEL_TIMEOUT) || 60000; // Increased to 60 seconds
+    this.timeout = parseInt(process.env.MODEL_TIMEOUT) || this.config.timeout;
     
     console.log('LLM Service initialized');
     console.log('Ollama URL:', this.ollamaUrl);
@@ -20,7 +22,7 @@ class LLMService {
     try {
       console.log('Warming up model...');
       const start = Date.now();
-      await this.generateResponse("Hi", { maxTokens: 5, temperature: 0.1 });
+      await this.generateResponse(this.config.warmupPrompt, this.config.warmupOptions);
       const duration = Date.now() - start;
       console.log(`Model warmed up in ${duration}ms`);
       return true;
@@ -39,8 +41,8 @@ class LLMService {
   async generateResponse(prompt, options = {}) {
     const {
       model = this.model,
-      temperature = 0.7,
-      maxTokens = 1000,
+      temperature = this.config.defaultTemperature,
+      maxTokens = this.config.defaultMaxTokens,
       systemPrompt = null
     } = options;
 
@@ -122,8 +124,8 @@ Keep response under 200 words and respond in JSON format:
     try {
       const response = await this.generateResponse(analysisPrompt, {
         systemPrompt: systemPrompt,
-        temperature: 0.3,
-        maxTokens: 500  // Reduced for faster response
+        temperature: this.config.presets.facility.temperature,
+        maxTokens: this.config.presets.facility.maxTokens
       });
 
       // Try to parse as JSON, fallback to structured text if needed
@@ -214,8 +216,8 @@ Respond in JSON format:
 
     try {
       const response = await this.generateResponse(enhancementPrompt, {
-        temperature: 0.4,
-        maxTokens: 800
+        temperature: this.config.presets.emergency.temperature,
+        maxTokens: this.config.presets.emergency.maxTokens
       });
 
       try {
@@ -277,8 +279,8 @@ Keep the tone professional but warm, like speaking with a fellow veteran who und
     try {
       const response = await this.generateResponse(conversationalPrompt, {
         systemPrompt: systemPrompt,
-        temperature: 0.6,
-        maxTokens: 600
+        temperature: this.config.presets.recommendation.temperature,
+        maxTokens: this.config.presets.recommendation.maxTokens
       });
 
       return response;
@@ -296,7 +298,7 @@ Keep the tone professional but warm, like speaking with a fellow veteran who und
   async isAvailable() {
     try {
       const response = await axios.get(`${this.ollamaUrl}/api/tags`, {
-        timeout: 5000
+        timeout: this.config.availabilityTimeout
       });
       return response.status === 200;
     } catch (error) {

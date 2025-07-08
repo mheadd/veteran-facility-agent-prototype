@@ -8,6 +8,21 @@ A fully functional AI-powered agent that helps veterans find nearby VA facilitie
 
 A self-contained AI agent application designed to help veterans find nearby VA facilities and get weather-aware transportation recommendations. **Optimized to run efficiently on conventional laptops** with local processing and smart resource management.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Core Functionality](#core-functionality)
+- [Design Considerations](#design-considerations)
+- [Technology Stack](#technology-stack)
+- [Installation and Setup](#installation-and-setup)
+- [API Endpoints](#api-endpoints)
+- [Testing](#testing)
+- [Resource Management and Optimization](#resource-management-and-optimization)
+- [Contributing](#contributing)
+- [Privacy and Security](#privacy-and-security)
+- [Hardware Compatibility](#hardware-compatibility)
+- [Support](#support)
+
 ## Overview
 
 This application takes an address or coordinates as input and provides veterans with:
@@ -194,26 +209,7 @@ docker exec ollama ollama pull llama3    # Full capability (16GB+ RAM systems)
 ### Geocoding Service
 The `/api/facilities/geocode` endpoint provides standalone address-to-coordinates conversion:
 
-**Request:**
-```json
-{
-  "address": "1600 Pennsylvania Avenue NW, Washington, DC 20500"
-}
-```
-
-**Response:**
-```json
-{
-  "location": {
-    "lat": 38.8977,
-    "lng": -77.0365,
-    "formatted_address": "1600 Pennsylvania Avenue NW, Washington, DC 20500, USA",
-    "source": "google"
-  }
-}
-```
-
-This service supports multiple geocoding providers (Google Maps, OpenStreetMap) with automatic fallback for reliability.
+Some sample API requests and responses can be found [in the documentation](https://github.com/mheadd/veteran-facility-agent-prototype/issues?q=is%3Aissue%20state%3Aopen%20label%3Adocumentation).
    
 ## Testing
 
@@ -262,6 +258,26 @@ Test settings are configured in `package.json`:
 - **Coverage**: Detailed reports generated in `coverage/` directory
 
 Run `npm run test:coverage` to see detailed coverage statistics and identify areas for additional testing.
+
+### Configuration System
+
+The application uses a centralized configuration system located in `src/config/index.js`. All configurable values are organized by service:
+
+- **VA API Service**: Search radius, cache duration, API timeouts
+- **LLM Service**: Response timeouts, temperature settings, model presets
+- **Weather Service**: Cache duration, request timeouts, temperature thresholds
+- **Transit Service**: Request timeouts, rideshare estimates
+- **Geocoding Service**: Request timeouts
+- **Transportation Analysis**: Distance thresholds, scoring algorithms
+- **Search Settings**: Default search radius, result limits
+
+#### Environment-Specific Overrides
+
+The configuration supports environment-specific overrides for development, test, and production environments. To modify configuration values:
+
+1. Edit `src/config/index.js` for permanent changes
+2. Use environment-specific overrides for temporary changes
+3. Access configuration using `getConfig('path.to.config')` or `getServiceConfig('serviceName')`
 
 ## Resource Management and Optimization
 

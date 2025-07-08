@@ -1,7 +1,9 @@
 const axios = require('axios');
+const { getServiceConfig } = require('../config');
 
 class SimpleGeocodingService {
   constructor() {
+    this.config = getServiceConfig('geocoding');
     this.googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
     this.weatherApiKey = process.env.OPENWEATHERMAP_API_KEY;
     
@@ -65,7 +67,7 @@ class SimpleGeocodingService {
     
     const response = await axios.get(url, { 
       params,
-      timeout: 10000,
+      timeout: this.config.requestTimeout,
       headers: {
         'User-Agent': 'VeteranFacilityAgent/1.0'
       }
@@ -127,7 +129,7 @@ class SimpleGeocodingService {
     
     const response = await axios.get(url, {
       params,
-      timeout: 10000,
+      timeout: this.config.requestTimeout,
       headers: {
         'User-Agent': 'VeteranFacilityAgent/1.0 (contact@veteranfacilityagent.com)',
         'Referer': 'https://veteranfacilityagent.com'
@@ -197,7 +199,7 @@ class SimpleGeocodingService {
       key: this.googleApiKey
     };
 
-    const response = await axios.get(url, { params, timeout: 10000 });
+    const response = await axios.get(url, { params, timeout: this.config.requestTimeout });
 
     if (response.data.status === 'OK' && response.data.results.length > 0) {
       const result = response.data.results[0];
@@ -227,7 +229,7 @@ class SimpleGeocodingService {
 
     const response = await axios.get(url, {
       params,
-      timeout: 10000,
+      timeout: this.config.requestTimeout,
       headers: {
         'User-Agent': 'VeteranFacilityAgent/1.0 (contact@veteranfacilityagent.com)',
         'Referer': 'https://veteranfacilityagent.com'

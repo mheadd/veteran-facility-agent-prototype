@@ -1,11 +1,13 @@
 const axios = require('axios');
+const { getServiceConfig } = require('../config');
 
 class VAAPIService {
   constructor() {
-    this.baseUrl = process.env.VA_API_BASE_URL || 'https://sandbox-api.va.gov/services/va_facilities/v1';
+    this.config = getServiceConfig('va');
+    this.baseUrl = process.env.VA_API_BASE_URL || this.config.baseUrl;
     this.apiKey = process.env.VA_API_KEY;
     this.timeout = parseInt(process.env.VA_API_TIMEOUT) || 10000;
-    this.cacheDuration = parseInt(process.env.FACILITY_CACHE_DURATION) || 3600; // 1 hour default
+    this.cacheDuration = parseInt(process.env.FACILITY_CACHE_DURATION) || this.config.cacheDuration;
     this.cache = new Map();
     
     console.log('VA API Service initialized');
@@ -26,8 +28,8 @@ class VAAPIService {
     }
 
     const {
-      radius = parseInt(process.env.DEFAULT_SEARCH_RADIUS) || 50,
-      maxResults = parseInt(process.env.MAX_FACILITIES_RETURNED) || 5,
+      radius = parseInt(process.env.DEFAULT_SEARCH_RADIUS) || this.config.defaultSearchRadius,
+      maxResults = parseInt(process.env.MAX_FACILITIES_RETURNED) || this.config.maxFacilities,
       facilityType = null, // health, benefits, cemetery, etc.
       services = null // specific services needed
     } = options;
@@ -115,7 +117,7 @@ class VAAPIService {
       'lat': lat.toString(),
       'long': lng.toString(),
       'radius': radius.toString(),
-      'per_page': (maxResults * 2).toString()
+      'per_page': (maxResults * this.config.maxResultsMultiplier).toString()
     });
 
     if (facilityType && facilityType !== 'all') {
@@ -509,8 +511,8 @@ class VAAPIService {
    * @returns {Object} - Bounding box coordinates
    */
   calculateBoundingBox(lat, lng, radiusMiles) {
-    const latRange = radiusMiles / 69; // Approximate miles per degree latitude
-    const lngRange = radiusMiles / (69 * Math.cos(lat * Math.PI / 180)); // Adjust for longitude
+    const latRange = radiusMiles / this.config.milesPerDegreeLat; // Approximate miles per degree latitude
+    const lngRange = radiusMiles / (this.config.milesPerDegreeLat * Math.cos(lat * Math.PI / 180)); // Adjust for longitude
     
     return {
       minLat: lat - latRange,
