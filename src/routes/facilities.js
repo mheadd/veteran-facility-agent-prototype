@@ -26,6 +26,36 @@ llm.warmUpModel().then(success => {
 });
 
 /**
+ * Geocoding endpoint
+ * POST /api/facilities/geocode
+ * Body: { address: "string" }
+ */
+router.post('/geocode', async (req, res) => {
+  try {
+    const { address } = req.body;
+    
+    if (!address) {
+      return res.status(400).json({
+        error: 'Address is required'
+      });
+    }
+    
+    const location = await geocoding.geocodeAddress(address);
+    
+    res.json({
+      location: location
+    });
+    
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    res.status(500).json({
+      error: 'Failed to geocode address',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Main facility finder endpoint
  * POST /api/facilities/find
  * Body: { address: "string" } or { lat: number, lng: number }
