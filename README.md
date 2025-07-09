@@ -222,7 +222,7 @@ The `/api/facilities/find` endpoint now includes intelligent AI analysis that:
 
 The system now prioritizes both accuracy and responsiveness, ensuring veterans receive thoughtful recommendations quickly.
 
-Some sample API requests and responses can be found [in the documentation](https://github.com/mheadd/veteran-facility-agent-prototype/issues?q=is%3Aissue%20state%3Aopen%20label%3Adocumentation).
+Some sample API requests and responses can be found [in the documentation](SAMPLE_REQUEST_AND_RESPONSE.MD).
    
 ## Testing
 
