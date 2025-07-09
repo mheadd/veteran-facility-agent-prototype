@@ -155,8 +155,43 @@ router.post('/find', async (req, res) => {
       }
     }
 
-    // Step 5: Build response with recommendations
-    console.log('Step 5: Building response...');
+    // Step 5: Get AI analysis and recommendations
+    console.log('Step 5: Getting AI analysis...');
+    let aiGuidance = null;
+    try {
+      // Only use LLM if service is available and we have facilities
+      const isLLMAvailable = await llm.isAvailable();
+      if (isLLMAvailable && facilities.length > 0) {
+        console.log('LLM service available, generating intelligent analysis (this may take 1-2 minutes)...');
+        const analysisStart = Date.now();
+        const analysisContext = {
+          query: req.body.query || req.body.address || 'Find nearby VA facilities',
+          facilities: facilities,
+          weather: weatherAnalysis,
+          transportation: transportationOptions,
+          location: location
+        };
+        
+        const llmResult = await llm.analyzeFacilityFindings(analysisContext);
+        const analysisEnd = Date.now();
+        const analysisTime = ((analysisEnd - analysisStart) / 1000).toFixed(1);
+        
+        if (llmResult.success) {
+          aiGuidance = llmResult.analysis;
+          console.log(`AI analysis completed successfully in ${analysisTime} seconds`);
+        } else {
+          console.log(`AI analysis failed after ${analysisTime} seconds, using fallback:`, llmResult.error);
+          aiGuidance = llmResult.fallback?.analysis || null;
+        }
+      } else {
+        console.log('LLM service not available, skipping AI analysis');
+      }
+    } catch (error) {
+      console.log('AI analysis error:', error.message);
+    }
+
+    // Step 6: Build response with recommendations
+    console.log('Step 6: Building response...');
     const response = {
       location: location,
       facilities: facilities,
@@ -164,6 +199,7 @@ router.post('/find', async (req, res) => {
       weatherAnalysis: weatherAnalysis,
       transportationOptions: transportationOptions,
       recommendations: generateRecommendations(facilities[0], weatherAnalysis, transportationOptions),
+      aiGuidance: aiGuidance, // NEW: AI-powered analysis and recommendations
       searchParameters: {
         radius: radius || getConfig('search.defaultRadius'),
         facilityType: facilityType || getConfig('facilityTypes.all')
@@ -353,7 +389,11 @@ router.get('/test-llm', async (req, res) => {
     // Test a simple prompt
     const simpleResponse = await llm.generateResponse(
       "Hello, please respond with 'LLM is working correctly' if you can understand this message.",
-      config.services.llm.presets.test
+      {
+        temperature: getConfig('services.llm.presets.test.temperature'),
+        maxTokens: getConfig('services.llm.presets.test.maxTokens'),
+        timeout: getConfig('services.llm.presets.test.timeout')
+      }
     );
 
     res.json({

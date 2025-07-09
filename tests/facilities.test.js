@@ -369,4 +369,46 @@ describe('Veteran Facility Agent API Tests', () => {
       expect(response.body).toHaveProperty('error');
     });
   });
+
+  describe('AI-Powered Analysis', () => {
+    test('Should include AI guidance when LLM is available', async () => {
+      const response = await request(app)
+        .post('/api/facilities/find')
+        .send({
+          address: "Washington, DC",
+          query: "I need mental health services and have mobility issues"
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('facilities');
+      expect(response.body.facilities.length).toBeGreaterThan(0);
+      
+      // Check if AI guidance is included (may be null if LLM unavailable)
+      expect(response.body).toHaveProperty('aiGuidance');
+      
+      // If AI guidance is provided, verify its structure
+      if (response.body.aiGuidance) {
+        expect(response.body.aiGuidance).toHaveProperty('primaryRecommendation');
+        expect(response.body.aiGuidance).toHaveProperty('reasoning');
+        expect(response.body.aiGuidance).toHaveProperty('urgencyLevel');
+        expect(typeof response.body.aiGuidance.primaryRecommendation).toBe('string');
+        expect(['normal', 'moderate', 'high']).toContain(response.body.aiGuidance.urgencyLevel);
+      }
+    });
+
+    test('Should handle AI analysis gracefully when LLM unavailable', async () => {
+      const response = await request(app)
+        .post('/api/facilities/find')
+        .send({
+          address: "New York, NY"
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('aiGuidance');
+      // Should be null if LLM unavailable, or contain analysis if available
+      if (response.body.aiGuidance) {
+        expect(typeof response.body.aiGuidance).toBe('object');
+      }
+    });
+  });
 });

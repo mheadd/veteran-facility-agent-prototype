@@ -43,6 +43,7 @@ const config = {
     // LLM Service
     llm: {
       timeout: 60000,                 // 60 seconds in milliseconds
+      analysisTimeout: 120000,        // 120 seconds for complex analysis tasks
       availabilityTimeout: 5000,      // 5 seconds for availability checks
       defaultTemperature: 0.7,
       defaultMaxTokens: 1000,
@@ -54,23 +55,28 @@ const config = {
       presets: {
         facility: {
           temperature: 0.3,
-          maxTokens: 500
+          maxTokens: 800,               // Increased for detailed analysis
+          timeout: 120000               // 2 minutes for facility analysis
         },
         emergency: {
           temperature: 0.4,
-          maxTokens: 800
+          maxTokens: 800,
+          timeout: 90000                // 1.5 minutes for emergency scenarios
         },
         recommendation: {
           temperature: 0.6,
-          maxTokens: 600
+          maxTokens: 600,
+          timeout: 90000                // 1.5 minutes for recommendations
         },
         simple: {
           temperature: 0.5,
-          maxTokens: 150
+          maxTokens: 150,
+          timeout: 30000                // 30 seconds for simple queries
         },
         test: {
           temperature: 0.1,
-          maxTokens: 50
+          maxTokens: 50,
+          timeout: 30000                // 30 seconds for tests
         }
       }
     },
@@ -127,6 +133,7 @@ const config = {
   // API Response Configuration
   api: {
     timeout: 30000,                   // 30 seconds for API responses
+    findTimeout: 150000,              // 2.5 minutes for find endpoint with AI analysis
     maxRetries: 3,                    // max retry attempts
   },
 

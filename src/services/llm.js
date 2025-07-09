@@ -43,6 +43,7 @@ class LLMService {
       model = this.model,
       temperature = this.config.defaultTemperature,
       maxTokens = this.config.defaultMaxTokens,
+      timeout = this.timeout,
       systemPrompt = null
     } = options;
 
@@ -62,9 +63,9 @@ class LLMService {
         payload.system = systemPrompt;
       }
 
-      console.log(`Sending prompt to ${model}...`);
+      console.log(`Sending prompt to ${model}... (timeout: ${timeout}ms)`);
       const response = await axios.post(`${this.ollamaUrl}/api/generate`, payload, {
-        timeout: this.timeout,
+        timeout: timeout,
         headers: {
           'Content-Type': 'application/json'
         }
@@ -305,6 +306,165 @@ Keep the tone professional but warm, like speaking with a fellow veteran who und
       console.error('LLM service not available:', error.message);
       return false;
     }
+  }
+
+  /**
+   * Analyze facility findings and provide intelligent recommendations
+   * @param {Object} context - Context including query, facilities, weather, transportation
+   * @returns {Promise<Object>} - Structured AI analysis and recommendations
+   */
+  async analyzeFacilityFindings(context) {
+    try {
+      const { query, facilities, weather, transportation, location } = context;
+      
+      // Build context summary for the LLM
+      const facilitySummary = facilities.slice(0, 3).map(f => ({
+        name: f.name,
+        type: f.type,
+        distance: f.distance,
+        services: f.services?.slice(0, 3) || [],
+        hours: f.hours
+      }));
+
+      const weatherSummary = weather ? {
+        current: weather.current?.condition || 'Unknown',
+        temperature: weather.current?.temperature || 'Unknown',
+        severity: weather.severity || 'normal',
+        recommendations: weather.recommendations?.slice(0, 2) || []
+      } : null;
+
+      const transportSummary = transportation && !transportation.error ? {
+        walking: transportation.options?.walking?.available ? 
+          `${transportation.options.walking.bestRoute?.duration} (${transportation.options.walking.bestRoute?.distance})` : 'Not available',
+        driving: transportation.options?.driving?.available ? 
+          `${transportation.options.driving.bestRoute?.duration}` : 'Not available',
+        transit: transportation.options?.transit?.available ? 
+          `${transportation.options.transit.bestRoute?.duration}` : 'Not available'
+      } : null;
+
+      const analysisPrompt = `You are an expert VA facility advisor helping a veteran find the best facility and travel plan.
+
+VETERAN'S REQUEST: "${query || 'Find nearby VA facilities'}"
+
+LOCATION: ${location?.address || 'Not specified'}
+
+AVAILABLE FACILITIES:
+${facilitySummary.map((f, i) => 
+  `${i + 1}. ${f.name} (${f.type}) - ${f.distance} miles away
+     Services: ${f.services.join(', ') || 'General services'}
+     Hours: ${f.hours?.monday || 'Standard hours'}`
+).join('\n')}
+
+WEATHER CONDITIONS: ${weatherSummary ? 
+  `${weatherSummary.current}, ${weatherSummary.temperature}°F (${weatherSummary.severity} conditions)` : 
+  'Weather data unavailable'}
+
+TRANSPORTATION OPTIONS: ${transportSummary ? 
+  `Walking: ${transportSummary.walking}, Driving: ${transportSummary.driving}, Transit: ${transportSummary.transit}` : 
+  'Transportation data unavailable'}
+
+Provide a helpful analysis in JSON format:
+{
+  "primaryRecommendation": "Brief, specific recommendation for the best facility choice",
+  "reasoning": "Why this facility is the best choice",
+  "travelAdvice": "Best transportation method and timing advice",
+  "weatherConsiderations": "How weather affects the recommendation (if applicable)",
+  "additionalTips": "Helpful veteran-specific advice",
+  "urgencyLevel": "normal|moderate|high" // Based on query content
+}
+
+Focus on being practical, veteran-friendly, and considerate of accessibility needs.`;
+
+      const response = await this.generateResponse(analysisPrompt, {
+        ...this.config.presets.facility,
+        timeout: this.config.presets.facility.timeout || this.config.analysisTimeout
+      });
+      
+      // Try to parse as JSON, fall back to text analysis if needed
+      try {
+        const analysis = JSON.parse(response);
+        return {
+          success: true,
+          analysis: analysis,
+          rawResponse: response
+        };
+      } catch (parseError) {
+        // If JSON parsing fails, extract key information from text
+        return {
+          success: true,
+          analysis: {
+            primaryRecommendation: this.extractMainRecommendation(response),
+            reasoning: "Based on proximity, services, and current conditions",
+            travelAdvice: this.extractTravelAdvice(response),
+            weatherConsiderations: weatherSummary ? 
+              `Consider ${weatherSummary.severity} weather conditions` : null,
+            additionalTips: "Contact the facility ahead of time to confirm services and hours",
+            urgencyLevel: this.determineUrgency(query || '')
+          },
+          rawResponse: response,
+          fallbackMode: true
+        };
+      }
+
+    } catch (error) {
+      console.error('LLM facility analysis error:', error.message);
+      return {
+        success: false,
+        error: error.message,
+        fallback: {
+          analysis: {
+            primaryRecommendation: "Visit the nearest facility for your needs",
+            reasoning: "Based on proximity and available services",
+            travelAdvice: "Choose the most convenient transportation method",
+            urgencyLevel: "normal"
+          }
+        }
+      };
+    }
+  }
+
+  /**
+   * Extract main recommendation from text response
+   */
+  extractMainRecommendation(text) {
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (line.toLowerCase().includes('recommend') && line.length > 20) {
+        return line.trim();
+      }
+    }
+    return "Consider the nearest facility that meets your needs";
+  }
+
+  /**
+   * Extract travel advice from text response
+   */
+  extractTravelAdvice(text) {
+    const transportKeywords = ['drive', 'walk', 'bus', 'transit', 'ride'];
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (transportKeywords.some(keyword => line.toLowerCase().includes(keyword))) {
+        return line.trim();
+      }
+    }
+    return "Choose the transportation method that works best for you";
+  }
+
+  /**
+   * Determine urgency level from query
+   */
+  determineUrgency(query) {
+    const urgentKeywords = ['emergency', 'urgent', 'crisis', 'immediately', 'asap', 'now'];
+    const moderateKeywords = ['soon', 'appointment', 'today', 'quickly'];
+    
+    const lowerQuery = query.toLowerCase();
+    if (urgentKeywords.some(keyword => lowerQuery.includes(keyword))) {
+      return 'high';
+    }
+    if (moderateKeywords.some(keyword => lowerQuery.includes(keyword))) {
+      return 'moderate';
+    }
+    return 'normal';
   }
 }
 
