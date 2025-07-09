@@ -19,7 +19,7 @@
 ### Advanced LLM Integration
 
 - [x] Connect LLM reasoning to the main /find endpoint
-- [x] [Speed Optimization](PERFORMANCE_SUMMARY.MD): Switched to phi3:mini model (90% faster responses)
+- [x] [Speed Optimization](PERFORMANCE_SUMMARY.md): Switched to phi3:mini model (90% faster responses)
 - [x] Prompt Optimization: Reduced prompt length and token limits
 - [x] Performance Tuning: 15-20 second AI analysis (was 45-90 seconds)
 - [ ] Add complex multi-step veteran scenario handling  
