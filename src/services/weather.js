@@ -4,7 +4,7 @@ const { getServiceConfig } = require('../config');
 class WeatherService {
   constructor() {
     this.config = getServiceConfig('weather');
-    this.weatherApiKey = process.env.OPENWEATHERMAP_API_KEY;
+    this.openWeatherApiKey = process.env.OPENWEATHERMAP_API_KEY;
     this.weatherApiKey = process.env.WEATHERAPI_KEY;
     this.cacheDuration = parseInt(process.env.WEATHER_CACHE_DURATION) || this.config.cacheDuration;
     this.cache = new Map();
