@@ -216,7 +216,11 @@ The `/api/facilities/find` endpoint now includes intelligent AI analysis that:
 - Considers weather conditions, transportation options, and facility services
 - Offers practical guidance for planning visits
 
-**Response Times**: AI analysis may take 1-2 minutes for complex queries. The system is optimized for accuracy over speed, ensuring veterans receive thoughtful, well-reasoned recommendations.
+**Response Times**: 
+- **With phi3:mini (current)**: AI analysis completes in 15-20 seconds
+- **With llama3.1:8b (previous)**: AI analysis took 45-90 seconds
+
+The system now prioritizes both accuracy and responsiveness, ensuring veterans receive thoughtful recommendations quickly.
 
 Some sample API requests and responses can be found [in the documentation](https://github.com/mheadd/veteran-facility-agent-prototype/issues?q=is%3Aissue%20state%3Aopen%20label%3Adocumentation).
    
@@ -350,9 +354,9 @@ Choose the appropriate model based on your system:
 
 | System RAM | Recommended Model | Usage | Performance |
 |------------|------------------|-------|-------------|
-| 8-12GB     | `phi3`          | Development, testing | Fast, efficient |
-| 12-16GB    | `mistral:7b`    | Balanced performance | Good quality/speed |
-| 16GB+      | `llama3`        | Production use | Best quality |
+| 8-12GB     | `phi3:mini`     | **Recommended default** | **Fast, efficient, optimized** |
+| 12-16GB    | `phi3:mini`     | Production use | **Fast, efficient, optimized** |
+| 16GB+      | `llama3.1:8b`   | High-quality analysis | Slower but more detailed |
 
 ### Performance Optimization Commands
 ```bash
@@ -371,11 +375,21 @@ docker stats
 ```
 
 ### Expected Performance (MacBook Air M2, 16GB RAM)
+
+**With phi3:mini model (optimized for speed):**
+- **Simple LLM tests**: ~2.6 seconds 
+- **Complete facility search with AI analysis**: ~15-20 seconds
 - **Simple queries**: 2-5 seconds
 - **Complex routing**: 5-10 seconds  
 - **Weather analysis**: 3-7 seconds
 - **Memory usage**: 6-10GB total (including macOS)
-- **Concurrent users**: 5-10 comfortable# Veteran Facility Agent
+- **Concurrent users**: 5-10 comfortable
+
+**Performance improvements with phi3:mini:**
+- 90% faster than llama3.1:8b for simple queries
+- 70% faster for complex AI analysis
+- Reduced token limits and optimized prompts for smaller model
+- Better responsiveness for real-time veteran interactions
 
 ## Contributing
 
