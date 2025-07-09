@@ -222,7 +222,7 @@ The `/api/facilities/find` endpoint now includes intelligent AI analysis that:
 
 The system now prioritizes both accuracy and responsiveness, ensuring veterans receive thoughtful recommendations quickly.
 
-Some sample API requests and responses can be found [in the documentation](SAMPLE_REQUEST_AND_RESPONSE.MD).
+Some sample API requests and responses can be found [in the documentation](SAMPLE_REQUEST_AND_RESPONSE.md).
    
 ## Testing
 
