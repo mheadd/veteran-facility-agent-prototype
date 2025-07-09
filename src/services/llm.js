@@ -342,38 +342,33 @@ Keep the tone professional but warm, like speaking with a fellow veteran who und
           `${transportation.options.transit.bestRoute?.duration}` : 'Not available'
       } : null;
 
-      const analysisPrompt = `You are an expert VA facility advisor helping a veteran find the best facility and travel plan.
+      const analysisPrompt = `You are a VA facility advisor helping a veteran.
 
-VETERAN'S REQUEST: "${query || 'Find nearby VA facilities'}"
-
+REQUEST: "${query || 'Find nearby VA facilities'}"
 LOCATION: ${location?.address || 'Not specified'}
 
-AVAILABLE FACILITIES:
+TOP FACILITIES:
 ${facilitySummary.map((f, i) => 
-  `${i + 1}. ${f.name} (${f.type}) - ${f.distance} miles away
-     Services: ${f.services.join(', ') || 'General services'}
-     Hours: ${f.hours?.monday || 'Standard hours'}`
+  `${i + 1}. ${f.name} - ${f.distance}mi, ${f.type}`
 ).join('\n')}
 
-WEATHER CONDITIONS: ${weatherSummary ? 
-  `${weatherSummary.current}, ${weatherSummary.temperature}°F (${weatherSummary.severity} conditions)` : 
-  'Weather data unavailable'}
+WEATHER: ${weatherSummary ? 
+  `${weatherSummary.current}, ${weatherSummary.temperature}°F` : 
+  'Unknown'}
 
-TRANSPORTATION OPTIONS: ${transportSummary ? 
-  `Walking: ${transportSummary.walking}, Driving: ${transportSummary.driving}, Transit: ${transportSummary.transit}` : 
-  'Transportation data unavailable'}
+TRANSPORT: ${transportSummary ? 
+  `Drive: ${transportSummary.driving}, Walk: ${transportSummary.walking}` : 
+  'Unknown'}
 
-Provide a helpful analysis in JSON format:
+Respond in JSON:
 {
-  "primaryRecommendation": "Brief, specific recommendation for the best facility choice",
-  "reasoning": "Why this facility is the best choice",
-  "travelAdvice": "Best transportation method and timing advice",
-  "weatherConsiderations": "How weather affects the recommendation (if applicable)",
-  "additionalTips": "Helpful veteran-specific advice",
-  "urgencyLevel": "normal|moderate|high" // Based on query content
-}
-
-Focus on being practical, veteran-friendly, and considerate of accessibility needs.`;
+  "primaryRecommendation": "which facility and why",
+  "reasoning": "brief reason",
+  "travelAdvice": "best transport method", 
+  "weatherConsiderations": "weather impact if any",
+  "additionalTips": "veteran-specific tip",
+  "urgencyLevel": "normal"
+}`;
 
       const response = await this.generateResponse(analysisPrompt, {
         ...this.config.presets.facility,

@@ -55,28 +55,28 @@ const config = {
       presets: {
         facility: {
           temperature: 0.3,
-          maxTokens: 800,               // Increased for detailed analysis
-          timeout: 120000               // 2 minutes for facility analysis
+          maxTokens: 400,               // Reduced for phi3:mini - more focused responses
+          timeout: 60000                // Reduced timeout for faster model
         },
         emergency: {
           temperature: 0.4,
-          maxTokens: 800,
-          timeout: 90000                // 1.5 minutes for emergency scenarios
+          maxTokens: 300,
+          timeout: 45000                // Reduced timeout
         },
         recommendation: {
           temperature: 0.6,
-          maxTokens: 600,
-          timeout: 90000                // 1.5 minutes for recommendations
+          maxTokens: 300,
+          timeout: 45000                // Reduced timeout
         },
         simple: {
           temperature: 0.5,
-          maxTokens: 150,
-          timeout: 30000                // 30 seconds for simple queries
+          maxTokens: 100,
+          timeout: 20000                // Reduced timeout for simple queries
         },
         test: {
           temperature: 0.1,
           maxTokens: 50,
-          timeout: 30000                // 30 seconds for tests
+          timeout: 15000                // Reduced timeout for tests
         }
       }
     },

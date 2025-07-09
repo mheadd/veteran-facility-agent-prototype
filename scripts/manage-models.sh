@@ -17,10 +17,10 @@ show_usage() {
     echo "  optimize            Optimize for current memory usage"
     echo ""
     echo "Recommended models for M2 MacBook Air (16GB):"
-    echo "  llama3.1:3b        ~2GB RAM - Development/Testing"
-    echo "  llama3.1:8b        ~5GB RAM - Production"
+    echo "  phi3:mini           ~2GB RAM - **Recommended default** (fastest)"
+    echo "  llama3.1:3b        ~2GB RAM - Alternative lightweight option"
+    echo "  llama3.1:8b        ~5GB RAM - Higher quality (slower)"
     echo "  mistral:7b          ~4GB RAM - Alternative option"
-    echo "  phi3:mini           ~2GB RAM - Lightweight option"
 }
 
 list_models() {

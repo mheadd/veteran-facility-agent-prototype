@@ -15,7 +15,7 @@ services:
       - OLLAMA_URL=http://ollama:11434
       - VA_API_BASE_URL=https://sandbox-api.va.gov/services/va_facilities/v1
       - VA_API_KEY=${VA_API_KEY}
-      - DEFAULT_MODEL=llama3  # Updated to working model name
+      - DEFAULT_MODEL=phi3:mini  # Faster, smaller model for improved response times
       - OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
       - GOOGLE_DIRECTIONS_API_KEY=${GOOGLE_DIRECTIONS_API_KEY}

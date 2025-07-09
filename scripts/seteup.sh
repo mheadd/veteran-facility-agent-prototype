@@ -46,8 +46,8 @@ if ! docker-compose exec ollama ollama --version &> /dev/null; then
 fi
 
 # Pull the default model
-echo "📥 Pulling default LLM model (this may take a while)..."
-docker-compose exec ollama ollama pull llama3.1:8b
+echo "📥 Pulling optimized LLM model (phi3:mini - faster performance)..."
+docker-compose exec ollama ollama pull phi3:mini
 
 # Initialize the database
 echo "🗄️ Initializing database..."

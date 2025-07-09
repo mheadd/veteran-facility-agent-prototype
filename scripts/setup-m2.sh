@@ -51,7 +51,7 @@ if [ ! -f .env ]; then
 NODE_OPTIONS=--max-old-space-size=1536 --optimize-for-size
 OLLAMA_NUM_PARALLEL=1
 OLLAMA_MAX_LOADED_MODELS=1
-DEFAULT_MODEL=llama3.1:3b
+DEFAULT_MODEL=phi3:mini
 REDIS_MAXMEMORY=256mb
 LOG_LEVEL=info
 
@@ -93,8 +93,8 @@ fi
 
 # Pull optimized model for M2
 echo "🧠 Pulling optimized LLM model for M2..."
-echo "   Starting with llama3.1:3b (lighter model, ~2GB)"
-docker-compose exec ollama ollama pull llama3.1:3b
+echo "   Using phi3:mini (fastest performance, ~2.2GB)"
+docker-compose exec ollama ollama pull phi3:mini
 
 # Optional: Pull larger model for production use
 read -p "🔄 Also pull llama3.1:8b for production use? (y/N): " -n 1 -r
