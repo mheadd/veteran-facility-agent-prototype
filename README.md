@@ -196,7 +196,7 @@ docker exec ollama ollama pull llama3    # Full capability (16GB+ RAM systems)
 ## API Endpoints
 
 ### Core Functionality
-- `POST /api/facilities/find` - Find nearest VA facility and transportation options
+- `POST /api/facilities/find` - Find nearest VA facility and transportation options **with AI-powered analysis**
 - `POST /api/facilities/simple-ask` - Process veteran queries with AI-powered assistance
 - `POST /api/facilities/geocode` - Convert addresses to coordinates (standalone geocoding service)
 
@@ -209,6 +209,14 @@ docker exec ollama ollama pull llama3    # Full capability (16GB+ RAM systems)
 
 ### Geocoding Service
 The `/api/facilities/geocode` endpoint provides standalone address-to-coordinates conversion:
+
+### AI Analysis Performance
+The `/api/facilities/find` endpoint now includes intelligent AI analysis that:
+- Provides personalized facility recommendations based on veteran needs
+- Considers weather conditions, transportation options, and facility services
+- Offers practical guidance for planning visits
+
+**Response Times**: AI analysis may take 1-2 minutes for complex queries. The system is optimized for accuracy over speed, ensuring veterans receive thoughtful, well-reasoned recommendations.
 
 Some sample API requests and responses can be found [in the documentation](https://github.com/mheadd/veteran-facility-agent-prototype/issues?q=is%3Aissue%20state%3Aopen%20label%3Adocumentation).
    
