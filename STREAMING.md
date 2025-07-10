@@ -375,14 +375,16 @@ The existing `/api/facilities/find` endpoint remains unchanged, ensuring full ba
 
 Multiple test interfaces are available for testing the streaming functionality:
 
-### 1. **Original Test Page** (`/test-streaming` or `## Testing Endpoints
+### Testing Endpoints
 
 | Endpoint | Description | CSP Requirements |
 |----------|-------------|------------------|
 | `/test-streaming` | Original test page with inline scripts | Relaxed CSP |
 | `/test-streaming.html` | Same as above | Relaxed CSP |
 | `/test-streaming-clean` | Clean test page with external JS | Strict CSP compatible |
-| `/test-streaming-clean.html` | Same as above | Strict CSP compatible |`)
+| `/test-streaming-clean.html` | Same as above | Strict CSP compatible |
+
+### 1. **Original Test Page** (`/test-streaming` or `/test-streaming.html`)
 - Uses inline JavaScript for simplicity
 - Requires relaxed CSP settings
 - Demonstrates real-time progress updates
@@ -397,6 +399,51 @@ Multiple test interfaces are available for testing the streaming functionality:
 - Same functionality as original test page
 - Better separation of concerns
 - Recommended for production-like testing
+
+### 3. **Command Line Testing with curl**
+
+You can test the streaming endpoint directly using curl to see the raw Server-Sent Events:
+
+```bash
+# Basic test with Washington DC
+curl -X POST http://localhost:3000/api/facilities/find-stream \
+  -H "Content-Type: application/json" \
+  -d '{"address": "Washington, DC"}' \
+  --no-buffer
+
+# Test with specific query and radius
+curl -X POST http://localhost:3000/api/facilities/find-stream \
+  -H "Content-Type: application/json" \
+  -d '{"address": "New York, NY", "query": "mental health services", "radius": 50}' \
+  --no-buffer
+
+# Test with verbose output to see headers
+curl -v -X POST http://localhost:3000/api/facilities/find-stream \
+  -H "Content-Type: application/json" \
+  -d '{"address": "Los Angeles, CA"}' \
+  --no-buffer
+```
+
+**Expected Output:**
+```
+data: {"type":"connection","data":{"status":"connected","message":"Starting facility search..."},"timestamp":"2025-07-10T18:30:00.000Z"}
+
+data: {"type":"status","data":{"step":"geocoding","message":"Finding location..."},"timestamp":"2025-07-10T18:30:01.000Z"}
+
+data: {"type":"location","data":{"location":{"lat":38.9071923,"lng":-77.0368707,"address":"Washington, DC, USA"},"message":"Location found: Washington, DC, USA"},"timestamp":"2025-07-10T18:30:02.000Z"}
+
+data: {"type":"facilities","data":{"facilities":[...],"message":"Found 5 facilities near you"},"timestamp":"2025-07-10T18:30:03.000Z"}
+
+data: {"type":"ai_analysis","data":{"type":"analysis_chunk","analysis":{"primaryRecommendation":"Based on your location..."}},"timestamp":"2025-07-10T18:30:10.000Z"}
+
+data: {"type":"complete","data":{"response":{...},"message":"Facility search completed successfully"},"timestamp":"2025-07-10T18:30:25.000Z"}
+```
+
+**Notes:**
+- The `--no-buffer` flag is important to see streaming output in real-time
+- Each event is prefixed with `data: ` followed by JSON
+- Events are separated by blank lines
+- Use `-v` flag to see HTTP headers including Content-Type: text/event-stream
 
 ### Content Security Policy (CSP) Support
 
