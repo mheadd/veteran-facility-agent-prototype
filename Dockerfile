@@ -37,6 +37,11 @@ COPY scripts/ ./scripts/
 COPY tests/ ./tests/
 COPY package*.json ./
 
+# Copy test HTML files
+COPY test-streaming.html ./
+COPY test-streaming-clean.html ./
+COPY test-streaming.js ./
+
 # Create necessary directories
 RUN mkdir -p data logs
 

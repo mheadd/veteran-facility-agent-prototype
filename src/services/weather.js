@@ -17,7 +17,10 @@ class WeatherService {
    * @returns {Promise<Object>} - Weather data
    */
   async getWeatherData(lat, lng) {
+    console.log(`Weather service: Getting data for coordinates: ${lat}, ${lng}`);
+    
     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+      console.error(`Invalid coordinates: lat=${lat}, lng=${lng}`);
       throw new Error('Invalid coordinates provided for weather data');
     }
 
@@ -28,21 +31,45 @@ class WeatherService {
       const cached = this.cache.get(cacheKey);
       if (Date.now() - cached.timestamp < this.cacheDuration * 1000) {
         console.log('Returning cached weather data');
-        return cached.data;
+        
+        // Verify cached data is valid
+        if (!cached.data || !cached.data.current) {
+          console.warn('Invalid cached weather data, fetching new data');
+        } else {
+          return cached.data;
+        }
       }
     }
 
     try {
+      console.log('Weather API keys status:', {
+        openWeatherMap: this.openWeatherApiKey ? 'available' : 'missing',
+        weatherApi: this.weatherApiKey ? 'available' : 'missing'
+      });
+      
       let weatherData;
       
       // Try OpenWeatherMap first (primary provider)
       if (this.openWeatherApiKey) {
+        console.log('Using OpenWeatherMap API for weather data');
         weatherData = await this.getOpenWeatherData(lat, lng);
       } else if (this.weatherApiKey) {
+        console.log('Using WeatherAPI for weather data');
         weatherData = await this.getWeatherApiData(lat, lng);
       } else {
         throw new Error('No weather API keys configured');
       }
+
+      // Verify weather data has the required structure
+      if (!weatherData || !weatherData.current) {
+        console.error('Invalid weather data structure returned:', weatherData);
+        throw new Error('Invalid weather data response');
+      }
+      
+      console.log('Successfully retrieved weather data:', {
+        condition: weatherData.current.condition,
+        temp: weatherData.current.temperature
+      });
 
       // Cache the result
       this.cache.set(cacheKey, {
@@ -64,48 +91,131 @@ class WeatherService {
    * @returns {Promise<Object>}
    */
   async getOpenWeatherData(lat, lng) {
+    console.log(`Fetching OpenWeatherMap data for coordinates: ${lat},${lng}`);
+    
     const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${this.openWeatherApiKey}&units=imperial`;
     const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${this.openWeatherApiKey}&units=imperial`;
+    
+    try {
+      console.log('Making API calls to OpenWeatherMap');
+      
+      const [currentResponse, forecastResponse] = await Promise.all([
+        axios.get(currentUrl, { 
+          timeout: this.config.requestTimeout,
+          headers: { 'User-Agent': 'VA-Facility-App/1.0' }
+        }),
+        axios.get(forecastUrl, { 
+          timeout: this.config.requestTimeout,
+          headers: { 'User-Agent': 'VA-Facility-App/1.0' }
+        })
+      ]);
+      
+      console.log('Successfully received OpenWeatherMap data');
+      
+      if (!currentResponse.data || !forecastResponse.data) {
+        console.error('Invalid response from OpenWeatherMap API:', {
+          currentData: !!currentResponse.data,
+          forecastData: !!forecastResponse.data
+        });
+        throw new Error('Invalid weather API response');
+      }
+      
+      const current = currentResponse.data;
+      const forecast = forecastResponse.data;
+      
+      // Create the weather data object
+      let weatherData = {
+        current: {
+          temperature: current.main && typeof current.main.temp !== 'undefined' ? Math.round(current.main.temp) : null,
+          feelsLike: current.main && typeof current.main.feels_like !== 'undefined' ? Math.round(current.main.feels_like) : null,
+          humidity: current.main && current.main.humidity,
+          pressure: current.main && current.main.pressure,
+          visibility: current.visibility ? Math.round(current.visibility * 0.000621371) : null, // Convert m to miles
+          windSpeed: current.wind && typeof current.wind.speed !== 'undefined' ? Math.round(current.wind.speed) : null,
+          windDirection: current.wind && current.wind.deg,
+          description: current.weather && current.weather[0] ? current.weather[0].description : 'No description available',
+          condition: current.weather && current.weather[0] ? current.weather[0].main.toLowerCase() : 'unknown',
+          icon: current.weather && current.weather[0] ? current.weather[0].icon : null,
+          precipitation: current.rain ? (current.rain['1h'] || 0) : 0,
+          cloudCover: current.clouds ? current.clouds.all : null
+        },
+        forecast: forecast.list.slice(0, this.config.forecastHours / this.config.forecastIntervalHours).map(item => ({ // Configurable forecast hours
+          time: new Date(item.dt * 1000).toISOString(),
+          temperature: Math.round(item.main.temp),
+          condition: item.weather[0].main.toLowerCase(),
+          description: item.weather[0].description,
+          precipitation: item.rain ? (item.rain['3h'] || 0) : 0,
+          windSpeed: Math.round(item.wind.speed)
+        })),
+        alerts: [], // OpenWeatherMap alerts require separate API call
+        location: {
+          name: current.name,
+          country: current.sys.country,
+          lat: lat,
+          lng: lng
+        },
+        provider: 'openweathermap',
+        timestamp: new Date().toISOString()
+      };
+      
+      // Return the weather data
+      return weatherData;
+    } catch (error) {
+      console.error(`OpenWeatherMap API error for ${lat},${lng}:`, error.message);
+      throw new Error(`OpenWeatherMap data fetch failed: ${error.message}`);
+    }
+  }
 
-    const [currentResponse, forecastResponse] = await Promise.all([
-      axios.get(currentUrl, { timeout: this.config.requestTimeout }),
-      axios.get(forecastUrl, { timeout: this.config.requestTimeout })
-    ]);
-
-    const current = currentResponse.data;
-    const forecast = forecastResponse.data;
-
+  /**
+   * Create mock weather data for testing or when API keys are unavailable
+   * @param {number} lat 
+   * @param {number} lng 
+   * @param {string} locationName - Optional location name
+   * @returns {Object} Mock weather data
+   */
+  getMockWeatherData(lat, lng, locationName = 'Test Location') {
+    console.log(`Generating mock weather data for ${lat},${lng}`);
+    
+    // Generate random but realistic weather data
+    const temp = Math.floor(Math.random() * 35) + 45; // 45-80°F
+    const conditions = ['clear', 'clouds', 'rain', 'mist', 'snow'];
+    const descriptions = ['Clear sky', 'Partly cloudy', 'Light rain', 'Mist', 'Light snow'];
+    const randomIndex = Math.floor(Math.random() * conditions.length);
+    
     return {
       current: {
-        temperature: Math.round(current.main.temp),
-        feelsLike: Math.round(current.main.feels_like),
-        humidity: current.main.humidity,
-        pressure: current.main.pressure,
-        visibility: current.visibility ? Math.round(current.visibility * 0.000621371) : null, // Convert m to miles
-        windSpeed: Math.round(current.wind.speed),
-        windDirection: current.wind.deg,
-        description: current.weather[0].description,
-        condition: current.weather[0].main.toLowerCase(),
-        icon: current.weather[0].icon,
-        precipitation: current.rain ? (current.rain['1h'] || 0) : 0,
-        cloudCover: current.clouds.all
+        temperature: temp,
+        feelsLike: temp - 2 + Math.floor(Math.random() * 5),
+        humidity: Math.floor(Math.random() * 40) + 30, // 30-70%
+        pressure: 1013,
+        visibility: 10,
+        windSpeed: Math.floor(Math.random() * 15) + 5,
+        windDirection: Math.floor(Math.random() * 360),
+        description: descriptions[randomIndex],
+        condition: conditions[randomIndex],
+        icon: '01d',
+        precipitation: randomIndex === 2 ? 0.2 : 0, // Rain if condition is rain
+        cloudCover: randomIndex === 1 ? 40 : 10 // More clouds if condition is clouds
       },
-      forecast: forecast.list.slice(0, this.config.forecastHours / this.config.forecastIntervalHours).map(item => ({ // Configurable forecast hours
-        time: new Date(item.dt * 1000).toISOString(),
-        temperature: Math.round(item.main.temp),
-        condition: item.weather[0].main.toLowerCase(),
-        description: item.weather[0].description,
-        precipitation: item.rain ? (item.rain['3h'] || 0) : 0,
-        windSpeed: Math.round(item.wind.speed)
-      })),
-      alerts: [], // OpenWeatherMap alerts require separate API call
+      forecast: Array.from({ length: 8 }, (_, i) => {
+        const forecastTemp = temp + Math.floor(Math.random() * 10) - 5;
+        return {
+          time: new Date(Date.now() + i * 3600000).toISOString(),
+          temperature: forecastTemp,
+          condition: conditions[randomIndex],
+          description: descriptions[randomIndex],
+          precipitation: randomIndex === 2 ? 0.2 : 0,
+          windSpeed: Math.floor(Math.random() * 15) + 5
+        };
+      }),
+      alerts: [],
       location: {
-        name: current.name,
-        country: current.sys.country,
+        name: locationName,
+        country: 'US',
         lat: lat,
         lng: lng
       },
-      provider: 'openweathermap',
+      provider: 'mock',
       timestamp: new Date().toISOString()
     };
   }
@@ -163,10 +273,35 @@ class WeatherService {
    * @returns {Object} - Weather analysis for transportation
    */
   analyzeWeatherForTransport(weatherData) {
+    // Ensure we have valid weather data before proceeding
+    if (!weatherData || !weatherData.current) {
+      console.log('Invalid weather data provided:', weatherData);
+      return {
+        current: {
+          temperature: 'Unknown',
+          feelsLike: 'Unknown',
+          condition: 'Unknown',
+          description: 'Weather data unavailable'
+        },
+        severity: 'unknown',
+        transportImpact: 'unknown',
+        recommendations: ['Check local weather conditions before traveling'],
+        warnings: ['Weather information temporarily unavailable'],
+        details: {}
+      };
+    }
+    
     const current = weatherData.current;
-    const forecast = weatherData.forecast;
+    const forecast = weatherData.forecast || [];
     
     const analysis = {
+      // Include the current weather directly in the analysis object
+      current: {
+        temperature: current.temperature,
+        feelsLike: current.feelsLike,
+        condition: current.condition,
+        description: current.description
+      },
       severity: 'normal',
       transportImpact: 'none',
       recommendations: [],
@@ -236,14 +371,79 @@ class WeatherService {
     analysis.details = {
       temperature: current.temperature,
       feelsLike: current.feelsLike,
-      precipitation: current.precipitation,
+      precipitation: current.precipitation || 0,
       windSpeed: current.windSpeed,
       visibility: current.visibility,
       condition: current.condition,
       alerts: weatherData.alerts?.length || 0
     };
+    
+    // Double-check that current is properly included
+    if (!analysis.current) {
+      analysis.current = {
+        temperature: current.temperature || 'Unknown',
+        feelsLike: current.feelsLike || 'Unknown', 
+        condition: current.condition || 'Unknown',
+        description: current.description || 'No description available'
+      };
+    }
 
+    console.log('Weather analysis result:', JSON.stringify(analysis.current));
     return analysis;
+  }
+
+  /**
+   * Create mock weather data for testing or when API keys are unavailable
+   * @param {number} lat 
+   * @param {number} lng 
+   * @param {string} locationName - Optional location name
+   * @returns {Object} Mock weather data
+   */
+  getMockWeatherData(lat, lng, locationName = 'Test Location') {
+    console.log(`Generating mock weather data for ${lat},${lng}`);
+    
+    // Generate random but realistic weather data
+    const temp = Math.floor(Math.random() * 35) + 45; // 45-80°F
+    const conditions = ['clear', 'clouds', 'rain', 'mist', 'snow'];
+    const descriptions = ['Clear sky', 'Partly cloudy', 'Light rain', 'Mist', 'Light snow'];
+    const randomIndex = Math.floor(Math.random() * conditions.length);
+    
+    return {
+      current: {
+        temperature: temp,
+        feelsLike: temp - 2 + Math.floor(Math.random() * 5),
+        humidity: Math.floor(Math.random() * 40) + 30, // 30-70%
+        pressure: 1013,
+        visibility: 10,
+        windSpeed: Math.floor(Math.random() * 15) + 5,
+        windDirection: Math.floor(Math.random() * 360),
+        description: descriptions[randomIndex],
+        condition: conditions[randomIndex],
+        icon: '01d',
+        precipitation: randomIndex === 2 ? 0.2 : 0, // Rain if condition is rain
+        cloudCover: randomIndex === 1 ? 40 : 10 // More clouds if condition is clouds
+      },
+      forecast: Array.from({ length: 8 }, (_, i) => {
+        const forecastTemp = temp + Math.floor(Math.random() * 10) - 5;
+        return {
+          time: new Date(Date.now() + i * 3600000).toISOString(),
+          temperature: forecastTemp,
+          condition: conditions[randomIndex],
+          description: descriptions[randomIndex],
+          precipitation: randomIndex === 2 ? 0.2 : 0,
+          windSpeed: Math.floor(Math.random() * 15) + 5
+        };
+      }),
+      alerts: [],
+      location: {
+        name: locationName,
+        country: 'US',
+        lat: lat,
+        lng: lng
+      },
+      provider: 'mock',
+      timestamp: new Date().toISOString()
+    };
   }
 
   /**

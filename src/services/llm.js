@@ -545,6 +545,15 @@ Respond in JSON:
     try {
       const { query, facilities, weather, transportation, location } = context;
       
+      // Ensure we have a valid location with proper address
+      const locationInfo = {
+        address: location?.address || 
+                (location?.fullDetails?.formatted_address) || 
+                'Unknown location',
+        lat: location?.lat,
+        lng: location?.lng
+      };
+      
       // Build context summary for the LLM (same as non-streaming version)
       const facilitySummary = facilities.slice(0, 3).map(f => ({
         name: f.name,
@@ -574,7 +583,7 @@ Respond in JSON:
       const analysisPrompt = `You are a VA facility advisor helping a veteran. Provide a structured analysis that flows naturally.
 
 REQUEST: "${query || 'Find nearby VA facilities'}"
-LOCATION: ${location?.address || 'Not specified'}
+LOCATION: ${locationInfo.address}
 
 TOP FACILITIES:
 ${facilitySummary.map((f, i) => 
