@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA Facility Finder - Streaming Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .search-form {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 4px solid #0066cc;
+            background: #e7f3ff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+            color: #155724;
+        }
+        .facility-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 10px 0;
+            background: white;
+        }
+        .facility-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #0066cc;
+            margin-bottom: 10px;
+        }
+        .facility-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .info-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .ai-guidance {
+            background: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .ai-section {
+            margin-bottom: 15px;
+        }
+        .ai-section h4 {
+            margin: 0 0 8px 0;
+            color: #155724;
+        }
+        .ai-section p {
+            margin: 0;
+            color: #333;
+        }
+        .streaming-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #0066cc;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .logs {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+        .log-timestamp {
+            color: #666;
+        }
+        .log-type {
+            font-weight: bold;
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 VA Facility Finder</h1>
+            <p>Real-time streaming search with AI recommendations</p>
+        </div>
+
+        <div class="search-form">
+            <div class="form-group">
+                <label for="address">Address or Location:</label>
+                <input type="text" id="address" placeholder="e.g., Washington, DC or 1600 Pennsylvania Ave" value="Washington, DC">
+            </div>
+            
+            <div class="form-group">
+                <label for="query">What do you need help with? (optional):</label>
+                <input type="text" id="query" placeholder="e.g., mental health services, disability benefits">
+            </div>
+
+            <div class="form-group">
+                <label for="radius">Search Radius (miles):</label>
+                <select id="radius">
+                    <option value="10">10 miles</option>
+                    <option value="25" selected>25 miles</option>
+                    <option value="50">50 miles</option>
+                    <option value="100">100 miles</option>
+                </select>
+            </div>
+
+            <button id="searchBtn" onclick="startStreamingSearch()">🔍 Find VA Facilities</button>
+            <button id="stopBtn" onclick="stopSearch()" disabled style="background: #dc3545; margin-left: 10px;">⏹️ Stop Search</button>
+        </div>
+
+        <div class="results" id="results"></div>
+        
+        <div class="logs" id="logs" style="display: none;">
+            <h4>Event Stream Logs:</h4>
+            <div id="logEntries"></div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let searchInProgress = false;
+        let aiAnalysisStarted = false; // Track if AI analysis has started
+
+        function startStreamingSearch() {
+            if (searchInProgress) {
+                return;
+            }
+
+            const address = document.getElementById('address').value.trim();
+            const query = document.getElementById('query').value.trim();
+            const radius = document.getElementById('radius').value;
+
+            if (!address) {
+                alert('Please enter an address or location');
+                return;
+            }
+
+            searchInProgress = true;
+            aiAnalysisStarted = false; // Reset AI analysis flag
+            updateButtonStates();
+            clearResults();
+            showLogs();
+
+            // Prepare the search data
+            const searchData = {
+                address: address,
+                radius: parseInt(radius)
+            };
+
+            if (query) {
+                searchData.query = query;
+            }
+
+            log('🚀 Starting streaming search...', 'info');
+
+            // Since EventSource doesn't support POST, we'll use fetch with streaming
+            fetchStreamingSearch(searchData);
+        }
+
+        async function fetchStreamingSearch(searchData) {
+            try {
+                const response = await fetch('/api/facilities/find-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        log('✅ Stream ended', 'success');
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                handleStreamData(data);
+                            } catch (e) {
+                                console.warn('Failed to parse SSE data:', line);
+                            }
+                        }
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ Stream error: ${error.message}`, 'error');
+                addStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                searchInProgress = false;
+                updateButtonStates();
+            }
+        }
+
+        function handleStreamData(data) {
+            log(`📨 ${data.type}: ${JSON.stringify(data.data)}`, 'data');
+
+            switch (data.type) {
+                case 'connection':
+                    addStatus(data.data.message, 'success');
+                    break;
+                
+                case 'status':
+                    addStatus(`Step: ${data.data.step} - ${data.data.message}`);
+                    break;
+                
+                case 'location':
+                    addStatus(`📍 ${data.data.message}`, 'success');
+                    displayLocation(data.data.location);
+                    break;
+                
+                case 'facilities':
+                    addStatus(`🏥 ${data.data.message}`, 'success');
+                    displayFacilities(data.data.facilities);
+                    break;
+                
+                case 'weather':
+                    addStatus(`🌤️ ${data.data.message}`, 'success');
+                    displayWeather(data.data.weather);
+                    break;
+                
+                case 'transportation':
+                    addStatus(`🚗 ${data.data.message}`, 'success');
+                    displayTransportation(data.data.transportation);
+                    break;
+                
+                case 'ai_analysis':
+                    handleAIAnalysis(data.data);
+                    break;
+                
+                case 'complete':
+                    addStatus(`🎉 ${data.data.message}`, 'success');
+                    break;
+                
+                case 'error':
+                    addStatus(`❌ ${data.data.message}`, 'error');
+                    break;
+            }
+        }
+
+        function handleAIAnalysis(data) {
+            if (data.type === 'analysis_chunk') {
+                // Only show the "AI analysis streaming..." message once
+                if (!aiAnalysisStarted) {
+                    addStatus('🤖 AI analysis streaming...', 'info');
+                    aiAnalysisStarted = true;
+                }
+                displayAIGuidance(data.analysis, false);
+            } else if (data.type === 'analysis_complete') {
+                addStatus('✅ AI analysis completed', 'success');
+                displayAIGuidance(data.analysis, true);
+            } else if (data.type === 'analysis_error') {
+                addStatus(`❌ AI analysis error: ${data.error}`, 'error');
+                if (data.fallback) {
+                    displayAIGuidance(data.fallback, true);
+                }
+            } else if (data.type === 'analysis_unavailable') {
+                addStatus('⚠️ AI analysis unavailable', 'info');
+            }
+        }
+
+        function displayLocation(location) {
+            const results = document.getElementById('results');
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'status success';
+            locationDiv.innerHTML = `
+                <h3>📍 Location Found</h3>
+                <p><strong>Address:</strong> ${location.address}</p>
+                <p><strong>Coordinates:</strong> ${location.lat}, ${location.lng}</p>
+            `;
+            results.appendChild(locationDiv);
+        }
+
+        function displayFacilities(facilities) {
+            const results = document.getElementById('results');
+            const facilitiesDiv = document.createElement('div');
+            facilitiesDiv.className = 'facilities-section';
+            facilitiesDiv.innerHTML = `<h3>🏥 VA Facilities (${facilities.length} found)</h3>`;
+
+            facilities.forEach((facility, index) => {
+                const facilityCard = document.createElement('div');
+                facilityCard.className = 'facility-card';
+                facilityCard.innerHTML = `
+                    <div class="facility-name">${facility.name}</div>
+                    <div class="facility-info">
+                        <div class="info-item"><strong>Type:</strong> ${facility.type}</div>
+                        <div class="info-item"><strong>Distance:</strong> ${facility.distance} miles</div>
+                        <div class="info-item"><strong>Phone:</strong> ${facility.phone || 'N/A'}</div>
+                        <div class="info-item"><strong>Address:</strong> ${facility.location?.address?.full || 'N/A'}</div>
+                    </div>
+                `;
+                facilitiesDiv.appendChild(facilityCard);
+            });
+
+            results.appendChild(facilitiesDiv);
+        }
+
+        function displayWeather(weather) {
+            const results = document.getElementById('results');
+            const weatherDiv = document.createElement('div');
+            weatherDiv.className = 'status';
+            
+            if (weather.error) {
+                weatherDiv.innerHTML = `
+                    <h3>🌤️ Weather Information</h3>
+                    <p>⚠️ ${weather.error}</p>
+                `;
+            } else {
+                weatherDiv.innerHTML = `
+                    <h3>🌤️ Weather Information</h3>
+                    <p><strong>Current:</strong> ${weather.current?.condition || 'Unknown'}</p>
+                    <p><strong>Temperature:</strong> ${weather.current?.temperature || 'Unknown'}°F</p>
+                    <p><strong>Travel Impact:</strong> ${weather.severity || 'Normal'}</p>
+                `;
+            }
+            
+            results.appendChild(weatherDiv);
+        }
+
+        function displayTransportation(transportation) {
+            const results = document.getElementById('results');
+            const transportDiv = document.createElement('div');
+            transportDiv.className = 'status';
+            
+            if (transportation.error) {
+                transportDiv.innerHTML = `
+                    <h3>🚗 Transportation Options</h3>
+                    <p>⚠️ ${transportation.error}</p>
+                    <p><em>${transportation.fallback || ''}</em></p>
+                `;
+            } else {
+                const options = transportation.options || {};
+                transportDiv.innerHTML = `
+                    <h3>🚗 Transportation Options</h3>
+                    <div class="facility-info">
+                        ${options.driving ? `<div class="info-item"><strong>🚗 Driving:</strong> ${options.driving.bestRoute?.duration || 'N/A'}</div>` : ''}
+                        ${options.walking ? `<div class="info-item"><strong>🚶 Walking:</strong> ${options.walking.bestRoute?.duration || 'N/A'}</div>` : ''}
+                        ${options.transit ? `<div class="info-item"><strong>🚌 Transit:</strong> ${options.transit.bestRoute?.duration || 'N/A'}</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            results.appendChild(transportDiv);
+        }
+
+        function displayAIGuidance(guidance, isComplete) {
+            let aiDiv = document.getElementById('ai-guidance');
+            
+            if (!aiDiv) {
+                aiDiv = document.createElement('div');
+                aiDiv.id = 'ai-guidance';
+                aiDiv.className = 'ai-guidance';
+                document.getElementById('results').appendChild(aiDiv);
+            }
+
+            const streamingIndicator = isComplete ? '' : '<span class="streaming-indicator"></span>';
+            
+            aiDiv.innerHTML = `
+                <h3>🤖 AI Recommendations ${streamingIndicator}</h3>
+                ${guidance.primaryRecommendation ? `
+                    <div class="ai-section">
+                        <h4>Primary Recommendation:</h4>
+                        <p>${guidance.primaryRecommendation}</p>
+                    </div>
+                ` : ''}
+                ${guidance.reasoning ? `
+                    <div class="ai-section">
+                        <h4>Reasoning:</h4>
+                        <p>${guidance.reasoning}</p>
+                    </div>
+                ` : ''}
+                ${guidance.travelAdvice ? `
+                    <div class="ai-section">
+                        <h4>Travel Advice:</h4>
+                        <p>${guidance.travelAdvice}</p>
+                    </div>
+                ` : ''}
+                ${guidance.weatherConsiderations ? `
+                    <div class="ai-section">
+                        <h4>Weather Considerations:</h4>
+                        <p>${guidance.weatherConsiderations}</p>
+                    </div>
+                ` : ''}
+                ${guidance.additionalTips ? `
+                    <div class="ai-section">
+                        <h4>Additional Tips:</h4>
+                        <p>${guidance.additionalTips}</p>
+                    </div>
+                ` : ''}
+            `;
+        }
+
+        function addStatus(message, type = 'info') {
+            const results = document.getElementById('results');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+            results.appendChild(statusDiv);
+            
+            // Auto scroll to bottom
+            statusDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        function showLogs() {
+            document.getElementById('logs').style.display = 'block';
+        }
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntries = document.getElementById('logEntries');
+            const logDiv = document.createElement('div');
+            logDiv.className = 'log-entry';
+            logDiv.innerHTML = `
+                <span class="log-timestamp">[${timestamp}]</span> 
+                <span class="log-type">${type.toUpperCase()}:</span> 
+                ${message}
+            `;
+            logEntries.appendChild(logDiv);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+
+        function stopSearch() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            searchInProgress = false;
+            updateButtonStates();
+            addStatus('🛑 Search stopped by user', 'info');
+        }
+
+        function updateButtonStates() {
+            document.getElementById('searchBtn').disabled = searchInProgress;
+            document.getElementById('stopBtn').disabled = !searchInProgress;
+        }
+    </script>
+</body>
+</html>
