@@ -1,7 +1,7 @@
 ### Request
 
 ```bash
-curl X POST "http://localhost:3000/api/facilities/find"   -H "Content-Type: application/json"   -d '{
+curl -X POST "http://localhost:3000/api/facilities/find"   -H "Content-Type: application/json"   -d '{
     "address": "Austin, TX",
     "facilityType": "health"
   }'
