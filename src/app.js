@@ -92,16 +92,6 @@ app.get('/test-streaming.html', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'test-streaming.html'));
 });
 
-// Serve the clean streaming test page (no inline scripts)
-app.get('/test-streaming-clean', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'test-streaming-clean.html'));
-});
-
-// Serve the clean streaming test page with .html extension
-app.get('/test-streaming-clean.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'test-streaming-clean.html'));
-});
-
 // Serve static files from root (for test-streaming.html)
 app.use(express.static(path.join(__dirname, '..')));
 

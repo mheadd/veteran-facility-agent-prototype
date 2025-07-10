@@ -58,6 +58,13 @@
             background: #ccc;
             cursor: not-allowed;
         }
+        .button-group {
+            display: flex;
+            gap: 15px;
+        }
+        .button-group button {
+            flex: 1;
+        }
         .results {
             margin-top: 20px;
         }
@@ -197,8 +204,10 @@
                 </select>
             </div>
 
-            <button id="searchBtn">🔍 Find VA Facilities</button>
-            <button id="stopBtn" disabled style="background: #dc3545; margin-left: 10px;">⏹️ Stop Search</button>
+            <div class="button-group">
+                <button id="searchBtn">🔍 Find VA Facilities</button>
+                <button id="stopBtn" disabled style="background: #dc3545;">⏹️ Stop Search</button>
+            </div>
         </div>
 
         <div class="results" id="results"></div>

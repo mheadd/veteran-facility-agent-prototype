@@ -37,9 +37,8 @@ COPY scripts/ ./scripts/
 COPY tests/ ./tests/
 COPY package*.json ./
 
-# Copy test HTML files
+# Copy test HTML file
 COPY test-streaming.html ./
-COPY test-streaming-clean.html ./
 COPY test-streaming.js ./
 
 # Create necessary directories
