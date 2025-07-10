@@ -379,12 +379,10 @@ Multiple test interfaces are available for testing the streaming functionality:
 
 | Endpoint | Description | CSP Requirements |
 |----------|-------------|------------------|
-| `/test-streaming` | Original test page with inline scripts | Relaxed CSP |
+| `/test-streaming` | Test page for the streaming interface | Relaxed CSP |
 | `/test-streaming.html` | Same as above | Relaxed CSP |
-| `/test-streaming-clean` | Clean test page with external JS | Strict CSP compatible |
-| `/test-streaming-clean.html` | Same as above | Strict CSP compatible |
 
-### 1. **Original Test Page** (`/test-streaming` or `/test-streaming.html`)
+### 1. **Test Page** (`/test-streaming` or `/test-streaming.html`)
 - Uses inline JavaScript for simplicity
 - Requires relaxed CSP settings
 - Demonstrates real-time progress updates
@@ -393,14 +391,15 @@ Multiple test interfaces are available for testing the streaming functionality:
 - Error handling
 - Connection management
 
-### 2. **Clean Test Page** (`/test-streaming-clean` or `/test-streaming-clean.html`)
-- Uses external JavaScript file for better security
-- Works with stricter CSP settings
-- Same functionality as original test page
-- Better separation of concerns
-- Recommended for production-like testing
+# Test Page Details
 
-### 3. **Command Line Testing with curl**
+The test page (`/test-streaming` or `/test-streaming.html`) includes:
+- External JavaScript for functionality
+- Modern UI with responsive design
+- Real-time updates through streaming
+- Comprehensive logging and debugging options
+
+### 2. **Command Line Testing with curl**
 
 You can test the streaming endpoint directly using curl to see the raw Server-Sent Events:
 
@@ -447,17 +446,18 @@ data: {"type":"complete","data":{"response":{...},"message":"Facility search com
 
 ### Content Security Policy (CSP) Support
 
-The streaming test pages handle CSP in two ways:
+The test page uses a slightly relaxed Content Security Policy (CSP) to enable all streaming features:
 
-1. **Relaxed CSP** (for `/test-streaming`): Allows inline scripts and event handlers
-2. **Strict CSP** (for `/test-streaming-clean`): Uses external JavaScript files
-
-If you encounter CSP errors like:
 ```
-Refused to execute inline script because it violates the following Content Security Policy directive: "script-src 'self'"
+default-src 'self'; 
+script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
+script-src-attr 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https:; 
+connect-src 'self'
 ```
 
-Use the clean version at `/test-streaming-clean` which works with stricter CSP policies.
+This allows the streaming functionality to work properly while maintaining reasonable security.
 
 ## Benefits Summary
 
