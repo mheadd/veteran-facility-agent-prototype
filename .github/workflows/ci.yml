@@ -2,9 +2,15 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: write
 
 jobs:
   test:
@@ -66,14 +72,14 @@ jobs:
         echo "NODE_ENV=test" >> $GITHUB_ENV
         echo "REDIS_URL=redis://localhost:6379" >> $GITHUB_ENV
         echo "OLLAMA_URL=http://localhost:11434" >> $GITHUB_ENV
-        echo "DEFAULT_MODEL=llama3" >> $GITHUB_ENV
+        echo "DEFAULT_MODEL=phi3:mini" >> $GITHUB_ENV
         echo "VA_API_BASE_URL=https://sandbox-api.va.gov/services/va_facilities/v1" >> $GITHUB_ENV
 
     - name: Pull and load Ollama model
       run: |
-        # Try to pull the model with a reasonable timeout
-        echo "Pulling llama3 model..."
-        timeout 900 bash -c 'docker exec ollama ollama pull llama3' || {
+        # Try to pull the optimized model with a reasonable timeout
+        echo "Pulling phi3:mini model (faster for CI)..."
+        timeout 900 bash -c 'docker exec ollama ollama pull phi3:mini' || {
           echo "Model pull timed out or failed, but continuing with tests"
           echo "Some LLM tests may fail, which is expected in CI environment"
         }
@@ -102,7 +108,7 @@ jobs:
         NODE_ENV: test
         REDIS_URL: redis://localhost:6379
         OLLAMA_URL: http://localhost:11434
-        DEFAULT_MODEL: llama3
+        DEFAULT_MODEL: phi3:mini
 
     - name: Generate coverage report
       run: npm run test:coverage
@@ -124,15 +130,16 @@ jobs:
 
     - name: Comment test results on PR
       uses: actions/github-script@v7
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && github.event.pull_request.number
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
           
           // Read test results if available
           let testSummary = '✅ Tests completed. Check the Actions tab for detailed results.';
           
-          github.rest.issues.createComment({
+          await github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
