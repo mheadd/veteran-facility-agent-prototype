@@ -3,9 +3,11 @@
 // Set test environment variables
 process.env.NODE_ENV = 'test';
 process.env.VA_API_BASE_URL = 'https://sandbox-api.va.gov/services/va_facilities/v1';
-process.env.OLLAMA_URL = 'http://ollama:11434';
+// Use environment-specific Ollama URL or dummy for CI
+process.env.OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 process.env.DEFAULT_MODEL = 'llama3';
-process.env.REDIS_URL = 'redis://redis:6379';
+// Use environment-specific Redis URL
+process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Mock external APIs if keys not available
 if (!process.env.GOOGLE_MAPS_API_KEY) {
@@ -142,12 +144,16 @@ global.testHelpers = {
 beforeAll(async () => {
   console.log('🧪 Starting Veteran Facility Agent test suite...');
   
-  // Check if required services are available
-  const llmAvailable = await global.testHelpers.isLLMAvailable();
-  if (llmAvailable) {
-    console.log('✅ LLM service available for testing');
+  // Check if required services are available (skip if disabled)
+  if (!process.env.DISABLE_LLM_CHECK && !process.env.SKIP_LLM_TESTS) {
+    const llmAvailable = await global.testHelpers.isLLMAvailable();
+    if (llmAvailable) {
+      console.log('✅ LLM service available for testing');
+    } else {
+      console.log('⚠️  LLM service not available - LLM tests will be conditional');
+    }
   } else {
-    console.log('⚠️  LLM service not available - LLM tests will be conditional');
+    console.log('⏭️  Skipping LLM availability check (disabled for CI)');
   }
 });
 

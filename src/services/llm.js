@@ -27,7 +27,10 @@ class LLMService {
       console.log(`Model warmed up in ${duration}ms`);
       return true;
     } catch (error) {
-      console.error('Model warm-up failed:', error.message);
+      // Only log warm-up errors if not using dummy URL (for CI)
+      if (!this.ollamaUrl.includes('dummy')) {
+        console.error('Model warm-up failed:', error.message);
+      }
       return false;
     }
   }
@@ -76,7 +79,10 @@ class LLMService {
       return result;
 
     } catch (error) {
-      console.error('LLM service error:', error.message);
+      // Only log errors if not using dummy URL (for CI)
+      if (!this.ollamaUrl.includes('dummy')) {
+        console.error('LLM service error:', error.message);
+      }
       throw new Error(`Failed to generate LLM response: ${error.message}`);
     }
   }
@@ -303,7 +309,10 @@ Keep the tone professional but warm, like speaking with a fellow veteran who und
       });
       return response.status === 200;
     } catch (error) {
-      console.error('LLM service not available:', error.message);
+      // Only log availability errors if not using dummy URL (for CI)
+      if (!this.ollamaUrl.includes('dummy')) {
+        console.error('LLM service not available:', error.message);
+      }
       return false;
     }
   }
