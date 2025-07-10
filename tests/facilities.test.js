@@ -51,7 +51,8 @@ describe('Veteran Facility Agent API Tests', () => {
       expect(response.body.location).toHaveProperty('lat');
       expect(response.body.location).toHaveProperty('lng');
       expect(response.body.location).toHaveProperty('formatted_address');
-      expect(response.body.location.source).toBe('google');
+      // Accept either Google or OpenStreetMap as valid sources (depending on API key availability)
+      expect(['google', 'openstreetmap']).toContain(response.body.location.source);
     });
 
     test('POST /api/facilities/geocode should handle invalid address', async () => {
