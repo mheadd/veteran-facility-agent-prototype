@@ -88,6 +88,114 @@ class LLMService {
   }
 
   /**
+   * Generate a streaming response using the LLM with real-time token emission
+   * @param {string} prompt - The prompt to send to the LLM
+   * @param {Function} onChunk - Callback function for each token/chunk received
+   * @param {Object} options - Additional options
+   * @returns {Promise<string>} - The complete LLM response
+   */
+  async generateResponseStream(prompt, onChunk, options = {}) {
+    const {
+      model = this.model,
+      temperature = this.config.defaultTemperature,
+      maxTokens = this.config.defaultMaxTokens,
+      timeout = this.timeout,
+      systemPrompt = null
+    } = options;
+
+    try {
+      const payload = {
+        model: model,
+        prompt: prompt,
+        options: {
+          temperature: temperature,
+          num_predict: maxTokens
+        },
+        stream: true  // Enable streaming mode
+      };
+
+      // Add system prompt if provided
+      if (systemPrompt) {
+        payload.system = systemPrompt;
+      }
+
+      console.log(`Starting streaming response from ${model}... (timeout: ${timeout}ms)`);
+      
+      // Use native fetch for streaming support (better than axios for this)
+      const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(timeout)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            break;
+          }
+
+          // Decode the chunk and add to buffer
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process complete lines from buffer
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          for (const line of lines) {
+            if (line.trim()) {
+              try {
+                const data = JSON.parse(line);
+                if (data.response) {
+                  fullResponse += data.response;
+                  // Call the callback with the new token
+                  if (onChunk) {
+                    onChunk(data.response, fullResponse);
+                  }
+                }
+                
+                // Check if streaming is complete
+                if (data.done) {
+                  console.log(`Streaming response completed (${fullResponse.length} characters)`);
+                  return fullResponse;
+                }
+              } catch (parseError) {
+                // Skip malformed JSON lines
+                console.warn('Failed to parse streaming response line:', line);
+              }
+            }
+          }
+        }
+        
+        return fullResponse;
+        
+      } finally {
+        reader.releaseLock();
+      }
+
+    } catch (error) {
+      // Only log errors if not using dummy URL (for CI)
+      if (!this.ollamaUrl.includes('dummy')) {
+        console.error('LLM streaming error:', error.message);
+      }
+      throw new Error(`Failed to generate streaming LLM response: ${error.message}`);
+    }
+  }
+
+  /**
    * Analyze a veteran's complex query and provide intelligent recommendations
    * @param {string} query - The veteran's question or request
    * @param {Object} context - Context including location, facilities, weather
@@ -425,6 +533,216 @@ Respond in JSON:
         }
       };
     }
+  }
+
+  /**
+   * Analyze facility findings with streaming response for real-time updates
+   * @param {Object} context - Context including query, facilities, weather, transportation
+   * @param {Function} onChunk - Callback for streaming updates
+   * @returns {Promise<Object>} - Structured AI analysis and recommendations
+   */
+  async analyzeFacilityFindingsStream(context, onChunk) {
+    try {
+      const { query, facilities, weather, transportation, location } = context;
+      
+      // Build context summary for the LLM (same as non-streaming version)
+      const facilitySummary = facilities.slice(0, 3).map(f => ({
+        name: f.name,
+        type: f.type,
+        distance: f.distance,
+        services: f.services?.slice(0, 3) || [],
+        hours: f.hours
+      }));
+
+      const weatherSummary = weather ? {
+        current: weather.current?.condition || 'Unknown',
+        temperature: weather.current?.temperature || 'Unknown',
+        severity: weather.severity || 'normal',
+        recommendations: weather.recommendations?.slice(0, 2) || []
+      } : null;
+
+      const transportSummary = transportation && !transportation.error ? {
+        walking: transportation.options?.walking?.available ? 
+          `${transportation.options.walking.bestRoute?.duration} (${transportation.options.walking.bestRoute?.distance})` : 'Not available',
+        driving: transportation.options?.driving?.available ? 
+          `${transportation.options.driving.bestRoute?.duration}` : 'Not available',
+        transit: transportation.options?.transit?.available ? 
+          `${transportation.options.transit.bestRoute?.duration}` : 'Not available'
+      } : null;
+
+      // Enhanced prompt for streaming with clearer structure
+      const analysisPrompt = `You are a VA facility advisor helping a veteran. Provide a structured analysis that flows naturally.
+
+REQUEST: "${query || 'Find nearby VA facilities'}"
+LOCATION: ${location?.address || 'Not specified'}
+
+TOP FACILITIES:
+${facilitySummary.map((f, i) => 
+  `${i + 1}. ${f.name} - ${f.distance}mi, ${f.type}`
+).join('\n')}
+
+WEATHER: ${weatherSummary ? 
+  `${weatherSummary.current}, ${weatherSummary.temperature}°F` : 
+  'Unknown'}
+
+TRANSPORT: ${transportSummary ? 
+  `Drive: ${transportSummary.driving}, Walk: ${transportSummary.walking}` : 
+  'Unknown'}
+
+Provide a structured response in this format:
+
+PRIMARY_RECOMMENDATION: [Start with your main facility recommendation and why]
+
+REASONING: [Brief explanation of why this is the best choice]
+
+TRAVEL_ADVICE: [Best transportation method and any considerations]
+
+WEATHER_CONSIDERATIONS: [Any weather-related advice if applicable]
+
+ADDITIONAL_TIPS: [Veteran-specific tips or reminders]
+
+URGENCY_LEVEL: [normal/moderate/high]`;
+
+      let accumulatedResponse = '';
+      let currentAnalysis = {
+        primaryRecommendation: '',
+        reasoning: '',
+        travelAdvice: '',
+        weatherConsiderations: '',
+        additionalTips: '',
+        urgencyLevel: 'normal'
+      };
+
+      // Stream the response and parse progressively
+      const fullResponse = await this.generateResponseStream(
+        analysisPrompt,
+        (chunk, fullText) => {
+          accumulatedResponse = fullText;
+          
+          // Parse the current state of the analysis
+          const updatedAnalysis = this.parseProgressiveAnalysis(accumulatedResponse);
+          
+          // Only send update if we have new meaningful content
+          if (this.hasNewAnalysisContent(updatedAnalysis, currentAnalysis)) {
+            currentAnalysis = updatedAnalysis;
+            if (onChunk) {
+              onChunk({
+                type: 'analysis_chunk',
+                analysis: currentAnalysis,
+                isComplete: false
+              });
+            }
+          }
+        },
+        {
+          ...this.config.presets.facility,
+          timeout: this.config.presets.facility.timeout || this.config.analysisTimeout
+        }
+      );
+
+      // Final parsing of complete response
+      const finalAnalysis = this.parseProgressiveAnalysis(fullResponse);
+      
+      // Send completion signal
+      if (onChunk) {
+        onChunk({
+          type: 'analysis_complete',
+          analysis: finalAnalysis,
+          isComplete: true
+        });
+      }
+
+      return {
+        success: true,
+        analysis: finalAnalysis,
+        rawResponse: fullResponse
+      };
+
+    } catch (error) {
+      console.error('LLM streaming facility analysis error:', error.message);
+      
+      // Send error to stream
+      if (onChunk) {
+        onChunk({
+          type: 'analysis_error',
+          error: error.message,
+          fallback: {
+            primaryRecommendation: "Visit the nearest facility for your needs",
+            reasoning: "Based on proximity and available services",
+            travelAdvice: "Choose the most convenient transportation method",
+            weatherConsiderations: weatherSummary ? 
+              `Consider ${weatherSummary.severity} weather conditions` : null,
+            additionalTips: "Contact the facility ahead of time to confirm services and hours",
+            urgencyLevel: "normal"
+          }
+        });
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        fallback: {
+          analysis: {
+            primaryRecommendation: "Visit the nearest facility for your needs",
+            reasoning: "Based on proximity and available services",
+            travelAdvice: "Choose the most convenient transportation method",
+            weatherConsiderations: weatherSummary ? 
+              `Consider ${weatherSummary.severity} weather conditions` : null,
+            additionalTips: "Contact the facility ahead of time to confirm services and hours",
+            urgencyLevel: "normal"
+          }
+        }
+      };
+    }
+  }
+
+  /**
+   * Parse progressive analysis from streaming response
+   * @param {string} text - Accumulated response text
+   * @returns {Object} - Parsed analysis object
+   */
+  parseProgressiveAnalysis(text) {
+    const analysis = {
+      primaryRecommendation: '',
+      reasoning: '',
+      travelAdvice: '',
+      weatherConsiderations: '',
+      additionalTips: '',
+      urgencyLevel: 'normal'
+    };
+
+    // Extract sections using pattern matching
+    const sections = {
+      'PRIMARY_RECOMMENDATION': 'primaryRecommendation',
+      'REASONING': 'reasoning', 
+      'TRAVEL_ADVICE': 'travelAdvice',
+      'WEATHER_CONSIDERATIONS': 'weatherConsiderations',
+      'ADDITIONAL_TIPS': 'additionalTips',
+      'URGENCY_LEVEL': 'urgencyLevel'
+    };
+
+    for (const [sectionKey, analysisKey] of Object.entries(sections)) {
+      const regex = new RegExp(`${sectionKey}:\\s*([^]*?)(?=\\n[A-Z_]+:|$)`, 'i');
+      const match = text.match(regex);
+      if (match) {
+        analysis[analysisKey] = match[1].trim().replace(/\n+/g, ' ');
+      }
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Check if analysis has new meaningful content
+   * @param {Object} newAnalysis - New analysis object
+   * @param {Object} currentAnalysis - Current analysis object
+   * @returns {boolean} - True if there's new content
+   */
+  hasNewAnalysisContent(newAnalysis, currentAnalysis) {
+    return Object.keys(newAnalysis).some(key => 
+      newAnalysis[key] !== currentAnalysis[key] && 
+      newAnalysis[key].length > currentAnalysis[key].length
+    );
   }
 
   /**

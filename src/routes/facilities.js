@@ -223,6 +223,230 @@ router.post('/find', async (req, res) => {
 });
 
 /**
+ * Streaming version of facility finder with Server-Sent Events
+ * POST /api/facilities/find-stream
+ */
+router.post('/find-stream', async (req, res) => {
+  console.log('🚀 Starting streaming facility search...');
+  
+  // Set up Server-Sent Events headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS'
+  });
+
+  // Helper function to send SSE data
+  const sendSSE = (type, data) => {
+    const sseData = JSON.stringify({ type, data, timestamp: new Date().toISOString() });
+    res.write(`data: ${sseData}\n\n`);
+  };
+
+  // Send initial connection confirmation
+  sendSSE('connection', { status: 'connected', message: 'Starting facility search...' });
+
+  try {
+    const { address, lat, lng, radius = 25, query } = req.body;
+    
+    // Step 1: Geocoding (fast)
+    console.log('Step 1: Geocoding address...');
+    sendSSE('status', { step: 'geocoding', message: 'Finding your location...' });
+    
+    let location;
+    if (lat && lng) {
+      location = { lat, lng, address: address || `${lat}, ${lng}` };
+    } else if (!address) {
+      throw new Error('Either address or coordinates (lat, lng) must be provided');
+    } else {
+      location = await geocoding.geocodeAddress(address);
+    }
+    
+    sendSSE('location', { 
+      location, 
+      message: `Location found: ${location.address}` 
+    });
+
+    // Step 2: Find facilities (fast)
+    console.log('Step 2: Finding VA facilities...');
+    sendSSE('status', { step: 'facilities', message: 'Searching for VA facilities...' });
+    
+    const facilities = await vaAPI.findFacilities(location.lat, location.lng, {
+      radius: radius,
+      limit: 5
+    });
+
+    if (!facilities || facilities.length === 0) {
+      sendSSE('facilities', { 
+        facilities: [], 
+        message: 'No VA facilities found within the specified radius.' 
+      });
+      sendSSE('complete', { message: 'Search completed with no results' });
+      return res.end();
+    }
+
+    sendSSE('facilities', { 
+      facilities, 
+      nearestFacility: facilities[0],
+      message: `Found ${facilities.length} facilities near you` 
+    });
+
+    // Step 3: Get weather data (fast)
+    console.log('Step 3: Getting weather data...');
+    sendSSE('status', { step: 'weather', message: 'Checking weather conditions...' });
+    
+    let weatherAnalysis = null;
+    try {
+      const weatherData = await weather.getWeatherData(location.lat, location.lng);
+      weatherAnalysis = weather.analyzeWeatherForTransport(weatherData);
+      weatherAnalysis.rawData = weatherData;
+      
+      sendSSE('weather', { 
+        weather: weatherAnalysis,
+        message: `Weather: ${weatherAnalysis.current?.condition || 'Unknown'} conditions` 
+      });
+    } catch (error) {
+      console.log('Weather data unavailable:', error.message);
+      weatherAnalysis = {
+        error: 'Weather data temporarily unavailable',
+        severity: 'unknown'
+      };
+      sendSSE('weather', { 
+        weather: weatherAnalysis,
+        message: 'Weather data temporarily unavailable' 
+      });
+    }
+
+    // Step 4: Get transportation options (moderate speed)
+    console.log('Step 4: Getting transportation options...');
+    sendSSE('status', { step: 'transportation', message: 'Finding transportation options...' });
+    
+    let transportationOptions = null;
+    try {
+      const destination = {
+        lat: facilities[0].location.lat,
+        lng: facilities[0].location.lng,
+        address: facilities[0].location.address.full
+      };
+
+      transportationOptions = await transit.getTransportationOptions(location, destination, {
+        includeTransit: true,
+        includeDriving: true,
+        includeWalking: true,
+        includeBicycling: false
+      });
+      
+      sendSSE('transportation', { 
+        transportation: transportationOptions,
+        message: 'Transportation options found' 
+      });
+    } catch (error) {
+      console.log('Transportation options unavailable:', error.message);
+      transportationOptions = {
+        error: 'Transportation data temporarily unavailable',
+        fallback: 'Consider public transit, driving, or rideshare services'
+      };
+      sendSSE('transportation', { 
+        transportation: transportationOptions,
+        message: 'Transportation data temporarily unavailable' 
+      });
+    }
+
+    // Step 5: Stream AI analysis (slow - this is where streaming helps!)
+    console.log('Step 5: Starting AI analysis stream...');
+    sendSSE('status', { step: 'ai_analysis', message: 'Generating AI recommendations...' });
+    
+    let aiGuidance = null;
+    try {
+      const isLLMAvailable = await llm.isAvailable();
+      if (isLLMAvailable && facilities.length > 0) {
+        console.log('LLM service available, starting streaming analysis...');
+        
+        const analysisContext = {
+          query: query || address || 'Find nearby VA facilities',
+          facilities: facilities,
+          weather: weatherAnalysis,
+          transportation: transportationOptions,
+          location: location
+        };
+        
+        // Stream the AI analysis in real-time
+        const analysisResult = await llm.analyzeFacilityFindingsStream(
+          analysisContext,
+          (streamData) => {
+            // Forward streaming chunks to client
+            sendSSE('ai_analysis', streamData);
+          }
+        );
+        
+        if (analysisResult.success) {
+          aiGuidance = analysisResult.analysis;
+          console.log('AI analysis streaming completed successfully');
+        } else {
+          console.log('AI analysis failed, using fallback:', analysisResult.error);
+          aiGuidance = analysisResult.fallback?.analysis || null;
+          sendSSE('ai_analysis', {
+            type: 'analysis_fallback',
+            analysis: aiGuidance,
+            message: 'Using fallback analysis due to AI service issue'
+          });
+        }
+      } else {
+        console.log('LLM service not available, skipping AI analysis');
+        sendSSE('ai_analysis', {
+          type: 'analysis_unavailable',
+          message: 'AI analysis temporarily unavailable'
+        });
+      }
+    } catch (error) {
+      console.log('AI analysis error:', error.message);
+      sendSSE('ai_analysis', {
+        type: 'analysis_error',
+        error: error.message,
+        message: 'AI analysis encountered an error'
+      });
+    }
+
+    // Step 6: Send final summary
+    console.log('Step 6: Sending final summary...');
+    const finalResponse = {
+      location: location,
+      facilities: facilities,
+      nearestFacility: facilities[0],
+      weatherAnalysis: weatherAnalysis,
+      transportationOptions: transportationOptions,
+      aiGuidance: aiGuidance,
+      summary: {
+        facilitiesFound: facilities.length,
+        recommendedFacility: facilities[0]?.name,
+        hasWeatherData: !!weatherAnalysis && !weatherAnalysis.error,
+        hasTransportationData: !!transportationOptions && !transportationOptions.error,
+        hasAIGuidance: !!aiGuidance
+      }
+    };
+
+    sendSSE('complete', {
+      response: finalResponse,
+      message: 'Facility search completed successfully'
+    });
+
+    console.log('✅ Streaming facility search completed');
+
+  } catch (error) {
+    console.error('Streaming facility finder error:', error);
+    sendSSE('error', {
+      error: error.message,
+      message: 'An error occurred during facility search'
+    });
+  } finally {
+    // Close the SSE connection
+    res.end();
+  }
+});
+
+/**
  * Simple LLM query endpoint for testing
  * POST /api/facilities/simple-ask
  */

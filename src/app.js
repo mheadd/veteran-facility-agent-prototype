@@ -11,7 +11,26 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for test pages
+      scriptSrcAttr: ["'unsafe-inline'"],       // Allow inline event handlers
+      styleSrc: ["'self'", "'unsafe-inline'"],  // Allow inline styles for test pages
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+}));
 app.use(cors({
   origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
   credentials: true
@@ -55,6 +74,36 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+// Serve static test files
+app.use('/test', express.static('test'));
+
+// Serve the streaming test page
+app.get('/test-streaming', (req, res) => {
+  // Disable CSP for the test page to allow inline scripts
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';");
+  res.sendFile(path.join(__dirname, '..', 'test-streaming.html'));
+});
+
+// Serve the streaming test page with .html extension
+app.get('/test-streaming.html', (req, res) => {
+  // Disable CSP for the test page to allow inline scripts
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self';");
+  res.sendFile(path.join(__dirname, '..', 'test-streaming.html'));
+});
+
+// Serve the clean streaming test page (no inline scripts)
+app.get('/test-streaming-clean', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'test-streaming-clean.html'));
+});
+
+// Serve the clean streaming test page with .html extension
+app.get('/test-streaming-clean.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'test-streaming-clean.html'));
+});
+
+// Serve static files from root (for test-streaming.html)
+app.use(express.static(path.join(__dirname, '..')));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
