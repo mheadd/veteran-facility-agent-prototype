@@ -23,6 +23,8 @@ const config = {
       rideshare: {
         estimatedTime: '15-25 minutes',
         estimatedCostRange: '$12-25',
+        enabled: true,                // Enable rideshare options by default
+        providers: ['uber', 'lyft'],  // Available rideshare providers
       }
     },
 
