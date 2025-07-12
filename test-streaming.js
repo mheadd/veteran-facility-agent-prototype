@@ -21,7 +21,6 @@ function startStreamingSearch() {
     aiAnalysisStarted = false; // Reset AI analysis flag
     updateButtonStates();
     clearResults();
-    showLogs();
 
     // Prepare the search data
     const searchData = {
@@ -33,15 +32,12 @@ function startStreamingSearch() {
         searchData.query = query;
     }
 
-    log('🚀 Starting streaming search...', 'info');
-
     // Since EventSource doesn't support POST, we'll use fetch with streaming
     fetchStreamingSearch(searchData);
 }
 
 async function fetchStreamingSearch(searchData) {
     try {
-        log('🔄 Sending request to streaming endpoint...', 'info');
         console.log('Search data being sent:', searchData);
         
         const response = await fetch('/api/facilities/find-stream', {
@@ -56,7 +52,7 @@ async function fetchStreamingSearch(searchData) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
-        log('🔄 Connected to stream, receiving data...', 'info');
+        console.log('Connected to stream, receiving data...');
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -65,7 +61,7 @@ async function fetchStreamingSearch(searchData) {
             const { done, value } = await reader.read();
             
             if (done) {
-                log('✅ Stream ended', 'success');
+                console.log('Stream ended');
                 break;
             }
 
@@ -96,14 +92,13 @@ async function fetchStreamingSearch(searchData) {
                         handleStreamData(data);
                     } catch (e) {
                         console.warn('Failed to parse SSE data:', eventData, e);
-                        log(`⚠️ Parse error: ${e.message}`, 'error');
                     }
                 }
             }
         }
 
     } catch (error) {
-        log(`❌ Stream error: ${error.message}`, 'error');
+        console.error('Stream error:', error);
         addStatus(`Error: ${error.message}`, 'error');
     } finally {
         searchInProgress = false;
@@ -114,20 +109,17 @@ async function fetchStreamingSearch(searchData) {
 function handleStreamData(data) {
     // Log the received data for debugging
     console.log('Received stream data:', data);
-    log(`📨 ${data.type}: ${JSON.stringify(data.data)}`, 'data');
 
     if (!data || !data.type || !data.data) {
-        log('❌ Invalid data received in stream', 'error');
+        console.warn('Invalid data received in stream');
         return;
     }
 
     switch (data.type) {
         case 'connection':
-            addStatus(data.data.message || 'Connected', 'success');
             break;
         
         case 'status':
-            addStatus(`Step: ${data.data.step || 'Unknown'} - ${data.data.message || 'In progress...'}`, 'info');
             break;
         
         case 'location':
@@ -136,7 +128,6 @@ function handleStreamData(data) {
             
             if (!data.data.location) {
                 addStatus('⚠️ Missing location data', 'error');
-                log('Missing location data in stream', 'error');
             } else {
                 const locationAddress = data.data.location.address || 
                                       (data.data.location.fullDetails && data.data.location.fullDetails.formatted_address) || 
@@ -148,12 +139,11 @@ function handleStreamData(data) {
             break;
         
         case 'facilities':
-            addStatus(`🏥 ${data.data.message || 'Facilities found'}`, 'success');
             // Ensure facilities is an array before displaying
             if (Array.isArray(data.data.facilities)) {
                 displayFacilities(data.data.facilities);
             } else {
-                log('❌ Invalid facilities data: not an array', 'error');
+                console.warn('Invalid facilities data: not an array');
                 addStatus('⚠️ Invalid facilities data received', 'error');
             }
             break;
@@ -172,13 +162,11 @@ function handleStreamData(data) {
                     'has_error': !!data.data.weather.error
                 });
                 
-                addStatus(`🌤️ ${data.data.message || 'Weather information'}`, 'success');
                 displayWeather(data.data.weather);
             }
             break;
         
         case 'transportation':
-            addStatus(`🚗 ${data.data.message || 'Transportation options'}`, 'success');
             displayTransportation(data.data.transportation);
             break;
         
@@ -187,7 +175,6 @@ function handleStreamData(data) {
             break;
         
         case 'complete':
-            addStatus(`🎉 ${data.data.message || 'Search completed'}`, 'success');
             break;
         
         case 'error':
@@ -198,22 +185,20 @@ function handleStreamData(data) {
 
 function handleAIAnalysis(data) {
     if (data.type === 'analysis_chunk') {
-        // Only show the "AI analysis streaming..." message once
+        // Only show the "AI analysis in progress..." message once
         if (!aiAnalysisStarted) {
-            addStatus('🤖 AI analysis streaming...', 'info');
+            addStatus('🤖 Generating AI recommendations... Please wait.', 'info');
             aiAnalysisStarted = true;
         }
         displayAIGuidance(data.analysis, false);
     } else if (data.type === 'analysis_complete') {
-        addStatus('✅ AI analysis completed', 'success');
         displayAIGuidance(data.analysis, true);
     } else if (data.type === 'analysis_error') {
-        addStatus(`❌ AI analysis error: ${data.error}`, 'error');
         if (data.fallback) {
             displayAIGuidance(data.fallback, true);
         }
     } else if (data.type === 'analysis_unavailable') {
-        addStatus('⚠️ AI analysis unavailable', 'info');
+        // No action needed - just don't show AI section
     }
 }
 
@@ -352,8 +337,9 @@ function displayTransportation(transportation) {
         const drivingOption = transportation.driving || (transportation.options && transportation.options.driving);
         const walkingOption = transportation.walking || (transportation.options && transportation.options.walking);
         const transitOption = transportation.transit || (transportation.options && transportation.options.transit);
+        const rideshareOption = transportation.rideshare || (transportation.options && transportation.options.rideshare);
         
-        transportDiv.innerHTML = `
+        let transportationHTML = `
             <h3>🚗 Transportation Options</h3>
             <div class="facility-info">
                 ${drivingOption ? `<div class="info-item"><strong>🚗 Driving:</strong> ${drivingOption.bestRoute && drivingOption.bestRoute.duration ? drivingOption.bestRoute.duration : 'N/A'}</div>` : ''}
@@ -361,9 +347,61 @@ function displayTransportation(transportation) {
                 ${transitOption ? `<div class="info-item"><strong>🚌 Transit:</strong> ${transitOption.bestRoute && transitOption.bestRoute.duration ? transitOption.bestRoute.duration : 'N/A'}</div>` : ''}
             </div>
         `;
+
+        // Add rideshare options if available
+        if (rideshareOption && rideshareOption.available && rideshareOption.options) {
+            transportationHTML += `
+                <div class="rideshare-options">
+                    <h4>🚖 Rideshare Options</h4>
+                    <div class="rideshare-buttons">
+            `;
+            
+            rideshareOption.options.forEach(option => {
+                transportationHTML += `
+                    <div class="rideshare-option">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${option.provider}</strong><br>
+                                <small style="color: #666;">${option.description}</small><br>
+                                <small style="color: #28a745;"><strong>Est. Time:</strong> ${option.estimatedTime}</small><br>
+                                <small style="color: #007bff;"><strong>Est. Cost:</strong> ${option.estimatedCost}</small>
+                            </div>
+                            <div>
+                                <a href="${option.deepLink}" 
+                                   class="rideshare-button"
+                                   onclick="handleRideshareClick('${option.deepLink}', '${option.webLink}', '${option.provider}'); return false;">
+                                   Open ${option.provider}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            transportationHTML += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        transportDiv.innerHTML = transportationHTML;
     }
     
     results.appendChild(transportDiv);
+}
+
+function handleRideshareClick(deepLink, webLink, provider) {
+    // Try to open the deep link first (mobile app)
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = deepLink;
+    document.body.appendChild(iframe);
+    
+    // Fallback to web link after a short delay
+    setTimeout(() => {
+        document.body.removeChild(iframe);
+        window.open(webLink, '_blank');
+    }, 1000);
 }
 
 function displayAIGuidance(guidance, isComplete) {
@@ -426,24 +464,6 @@ function addStatus(message, type = 'info') {
 
 function clearResults() {
     document.getElementById('results').innerHTML = '';
-}
-
-function showLogs() {
-    document.getElementById('logs').style.display = 'block';
-}
-
-function log(message, type = 'info') {
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntries = document.getElementById('logEntries');
-    const logDiv = document.createElement('div');
-    logDiv.className = 'log-entry';
-    logDiv.innerHTML = `
-        <span class="log-timestamp">[${timestamp}]</span> 
-        <span class="log-type">${type.toUpperCase()}:</span> 
-        ${message}
-    `;
-    logEntries.appendChild(logDiv);
-    logEntries.scrollTop = logEntries.scrollHeight;
 }
 
 function stopSearch() {

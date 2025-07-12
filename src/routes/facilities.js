@@ -339,11 +339,10 @@ router.post('/find-stream', async (req, res) => {
         throw new Error('Invalid location coordinates for weather lookup');
       }
       
-      // Use mock weather data to avoid API issues
-      console.log('Using mock weather data for reliability');
-      const locationName = location.address ? location.address.split(',')[0] : 'Your location';
-      const weatherData = weather.getMockWeatherData(location.lat, location.lng, locationName);
-      console.log('Weather data created:', JSON.stringify(weatherData.current));
+      // Get real weather data from weather service
+      console.log('Fetching real weather data from weather service');
+      const weatherData = await weather.getWeatherData(location.lat, location.lng);
+      console.log('Weather data retrieved:', JSON.stringify(weatherData.current));
       
       weatherAnalysis = weather.analyzeWeatherForTransport(weatherData);
       console.log('Weather analysis completed:', JSON.stringify(weatherAnalysis.current));
@@ -361,20 +360,37 @@ router.post('/find-stream', async (req, res) => {
         message: weatherResponseMessage
       });
     } catch (error) {
-      console.log('Weather data unavailable:', error.message);
-      weatherAnalysis = {
-        error: 'Weather data temporarily unavailable',
-        current: { 
-          condition: 'Unknown', 
-          temperature: 'Unknown',
-          description: 'Service temporarily unavailable'
-        },
-        severity: 'unknown'
-      };
-      sendSSE('weather', { 
-        weather: weatherAnalysis,
-        message: 'Weather data temporarily unavailable' 
-      });
+      console.log('Weather data unavailable, falling back to mock data:', error.message);
+      
+      // Fall back to mock weather data if the real service fails
+      try {
+        const locationName = location.address ? location.address.split(',')[0] : 'Your location';
+        const weatherData = weather.getMockWeatherData(location.lat, location.lng, locationName);
+        console.log('Using mock weather data as fallback');
+        
+        weatherAnalysis = weather.analyzeWeatherForTransport(weatherData);
+        weatherResponseMessage = `Weather: ${weatherAnalysis.current.condition || 'Unknown'} conditions (estimated)`;
+        
+        sendSSE('weather', { 
+          weather: weatherAnalysis,
+          message: weatherResponseMessage
+        });
+      } catch (mockError) {
+        console.error('Mock weather data also failed:', mockError.message);
+        weatherAnalysis = {
+          error: 'Weather data temporarily unavailable',
+          current: { 
+            condition: 'Unknown', 
+            temperature: 'Unknown',
+            description: 'Service temporarily unavailable'
+          },
+          severity: 'unknown'
+        };
+        sendSSE('weather', { 
+          weather: weatherAnalysis,
+          message: 'Weather data temporarily unavailable' 
+        });
+      }
     }
 
     // Step 4: Get transportation options (moderate speed)
@@ -413,7 +429,8 @@ router.post('/find-stream', async (req, res) => {
           options: {
             driving: transportationOptions.driving,
             transit: transportationOptions.transit,
-            walking: transportationOptions.walking
+            walking: transportationOptions.walking,
+            rideshare: transportationOptions.rideshare
           }
         };
       }
@@ -606,15 +623,16 @@ router.get('/test-weather', async (req, res) => {
     
     console.log(`Testing weather for coordinates: ${lat}, ${lng}`);
     
-    // Use mock weather data to avoid API key issues
-    const weatherData = weather.getMockWeatherData(parseFloat(lat), parseFloat(lng), "Washington DC");
+    // Use real weather data from weather service
+    const weatherData = await weather.getWeatherData(parseFloat(lat), parseFloat(lng));
     const analysis = weather.analyzeWeatherForTransport(weatherData);
     
     res.json({
       coordinates: { lat: parseFloat(lat), lng: parseFloat(lng) },
       weatherData: weatherData,
       analysis: analysis,
-      mockDataUsed: true,
+      realDataUsed: true,
+      provider: weatherData.provider,
       timestamp: new Date().toISOString()
     });
 

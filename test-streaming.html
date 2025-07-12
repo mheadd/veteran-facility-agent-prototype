@@ -150,36 +150,41 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
-        .logs {
-            margin-top: 30px;
-            padding: 20px;
+        .rideshare-options {
+            margin-top: 15px;
+            padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
             border: 1px solid #dee2e6;
         }
-        .logs h4 {
-            margin-top: 0;
-            color: #333;
-        }
-        #logEntries {
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 12px;
-            background: #fff;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        .log-entry {
-            margin: 2px 0;
-        }
-        .log-timestamp {
-            color: #666;
-        }
-        .log-type {
-            font-weight: bold;
+        .rideshare-options h4 {
             color: #0066cc;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .rideshare-option {
+            margin: 8px 0;
+            padding: 12px;
+            background: #fff;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .rideshare-button {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .rideshare-button:hover {
+            background: #0052a3;
+            color: white;
+            text-decoration: none;
         }
     </style>
 </head>
@@ -218,11 +223,6 @@
         </div>
 
         <div class="results" id="results"></div>
-        
-        <div class="logs" id="logs" style="display: none;">
-            <h4>Event Stream Logs:</h4>
-            <div id="logEntries"></div>
-        </div>
     </div>
 
     <script src="/test-streaming.js"></script>
